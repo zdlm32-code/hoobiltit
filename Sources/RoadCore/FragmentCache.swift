@@ -16,9 +16,9 @@ public struct CacheKey: Sendable, Hashable {
     static let decimalPlaces = 4.0
 
     public init(_ query: RoadQuery) {
-        let scale = pow(10, Self.decimalPlaces)
-        self.latitude = (query.coordinate.latitude * scale).rounded() / scale
-        self.longitude = (query.coordinate.longitude * scale).rounded() / scale
+        let rounded = query.coordinate.rounded(toDecimalPlaces: Self.decimalPlaces)
+        self.latitude = rounded.latitude
+        self.longitude = rounded.longitude
         self.searchRadiusMeters = query.searchRadiusMeters
     }
 

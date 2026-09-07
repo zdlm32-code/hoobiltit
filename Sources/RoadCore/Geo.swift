@@ -15,6 +15,24 @@ public struct Coordinate: Sendable, Hashable, Codable {
 /// Not a preference: `distance` + `units` point-buffering silently returns zero features on
 /// the county's on-prem ArcGIS Server — no error, just an empty set (docs/ENDPOINTS.md §4).
 /// Envelopes work on every host, so the client only knows how to build envelopes.
+public extension Coordinate {
+    /// A coarser version of this point.
+    ///
+    /// Used for two different jobs with two different reasons, which is why the precision is a
+    /// parameter rather than a constant. `CacheKey` rounds to 4 places (~11 m) for *correctness*
+    /// — two taps a few metres apart are the same question, and coarser would let one key cover
+    /// two roads. A published report rounds to 3 (~100 m) for *disclosure* — 11 m is house-level,
+    /// and a permanent public record filed outside somebody's home should not say which home.
+    ///
+    /// Rounds rather than truncates, so the result is the nearest grid point rather than always
+    /// the one south-west of it.
+    func rounded(toDecimalPlaces places: Double) -> Coordinate {
+        let scale = pow(10, places)
+        return Coordinate(latitude: (latitude * scale).rounded() / scale,
+                          longitude: (longitude * scale).rounded() / scale)
+    }
+}
+
 public struct Envelope: Sendable, Hashable {
     public let xmin, ymin, xmax, ymax: Double
 
