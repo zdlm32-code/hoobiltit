@@ -31,7 +31,7 @@ header{border-bottom:1px solid var(--line)}
 .bar nav{margin-left:auto;display:flex;gap:22px;font-size:15px}
 .bar nav a{color:var(--muted)}
 .bar nav a:hover{color:var(--text);text-decoration:none}
-@media(max-width:600px){.bar nav{gap:16px;font-size:14px}}
+@media(max-width:600px){.bar nav{gap:16px;font-size:14px}.bar nav a[data-opt]{display:none}}
 
 /* hero */
 .hero{padding:76px 0 68px}
@@ -73,6 +73,23 @@ h2{font-size:clamp(23px,3.3vw,30px);letter-spacing:-.8px;margin:12px 0 0;line-he
 .card h3{margin:0 0 4px;font-size:17px;letter-spacing:-.2px}
 .card .where{font-family:var(--mono);font-size:13px;color:var(--yellow);margin:0 0 12px}
 .card p{margin:0;color:var(--muted);font-size:15.5px}
+
+/* shared map: what is published vs what is not */
+.pool{border-top:1px solid var(--line);padding:56px 0 64px}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:38px}
+@media(max-width:760px){.split{grid-template-columns:1fr}}
+.panel{background:var(--bg-raised);border:1px solid var(--line);border-radius:12px;padding:24px}
+.panel h3{margin:0 0 16px;font-size:15px;letter-spacing:.02em}
+.panel ul{margin:0;padding:0;list-style:none}
+.panel li{position:relative;padding-left:26px;margin:11px 0;color:var(--muted);font-size:15.5px;
+  line-height:1.5}
+.panel li b{color:var(--text);font-weight:600}
+.panel-yes li::before{content:"+";position:absolute;left:4px;top:-1px;color:var(--yellow);
+  font-family:var(--mono);font-weight:700}
+.panel-no li::before{content:"\00d7";position:absolute;left:3px;top:-1px;color:#6b7482;
+  font-family:var(--mono);font-size:17px}
+.pool-note{margin:30px 0 0;color:var(--muted);max-width:52em}
+.pool-note b{color:var(--text);font-weight:600}
 
 /* footer */
 footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--muted);font-size:14.5px}
