@@ -272,6 +272,52 @@ stable identifier rather than by name matching.
 CSV quoting has its own tests. One comma in a note shifts every column after it and nothing
 complains, so the escaping is a pure function rather than interpolation at the call site.
 
+## Sharing, and the shared map
+
+**Share a road** from the full report's toolbar: a rendered card and a text fallback. Neither
+carries a coordinate, and that is not incidental. Every field on a `RoadRecord` carries a
+`Provenance` whose URL is the exact ArcGIS query — geometry parameter and all — so the pin is
+recoverable from it, and `fetchedAt` says when somebody was standing there. `RoadRecord` is
+therefore deliberately left non-`Codable`; `Coverage` carries a comment saying so, because making
+it `Codable` is a one-word change that looks like a tidy-up and would silently remove the
+guarantee.
+
+**The shared map** pools road ratings through CloudKit's public database — Apple-hosted, so there
+is no server, no key and no login; the identity is the iCloud account already on the phone.
+
+What is published is deliberately small:
+
+| Published | Never published |
+|---|---|
+| Rating and issue, both from the county's own vocabularies | **Your note** — the only free text in the app |
+| Road name, segment id, jurisdiction, maintaining agency | The exact coordinate, and the cross streets |
+| A location rounded to **~100 m** | The time of day |
+| The **date**, no time | Any name, account or device identifier |
+
+Two decisions worth the space. **The rounding is coarser than the lookup cache's**, deliberately:
+`CacheKey` rounds to 11 m for *correctness* — coarser would let one key cover two roads — where
+the cost is a wrong answer. Here the cost is a disclosure, and 11 m is house-level. 100 m keeps
+the marker on the right road while leaving "which house" unanswerable. **And the timestamp is
+rounded too**, because 100 m plus a millisecond time is a movement trace.
+
+Sharing is **off on every report**. No remembered preference: the point of asking per report is
+that the answer is a choice each time.
+
+Moderation is mostly solved by construction. Two closed vocabularies and no prose means there is
+nothing objectionable a stranger can publish. What remains is a flag on each marker, a threshold
+at which it stops being drawn, and — because there is no server — the whole thing is designed so
+a report can be withdrawn by its author, whom CloudKit's `_creator` role identifies without the
+app ever handling an identity.
+
+Reads never require an iCloud account: the public database is readable signed out, so gating
+reads on the account check — the mistake that shows a signed-out user an empty map — is
+specifically avoided. Only contributing needs an account.
+
+Everything privacy-critical is pure and tested on macOS with no network and no account: the
+redaction, the rounding, the vocabulary round-trip, and the rule that a value published by a
+future version is *dropped rather than crashed on*, which is what stops a later release breaking
+this one's map.
+
 ## Design
 
 - **`RoadSource`** — one swappable provider. Each contributes only the fields it knows, and

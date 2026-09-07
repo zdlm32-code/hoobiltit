@@ -57,15 +57,28 @@ targets:
         UIBackgroundModes:
           - location
         NSLocationAlwaysAndWhenInUseUsageDescription: >-
-          Drive mode identifies each road as you drive, which needs location while the screen
-          is locked. Road lookups run on your position and it is never sent anywhere but the
-          public county and state map services that answer them.
+          Drive mode identifies each road as you drive, which needs location while the screen is
+          locked. Lookups go only to the public county and state map services that answer them,
+          and drive mode publishes nothing. If you choose to add a report to the shared map, its
+          location is rounded to about 100 metres first.
+        # Reworded when the shared map arrived. The previous text promised, without
+        # qualification, that "your location is never sent to any server" — which a pooled
+        # report contradicts on its face, since a report is a coordinate and a time.
         NSLocationWhenInUseUsageDescription: >-
-          Used only to centre the map on where you are. Road lookups run on the pin you drop,
-          and your location is never sent to any server.
+          Used to centre the map on where you are. Road lookups go only to the public county and
+          state map services that answer them. If you choose to add a report to the shared map,
+          its location is rounded to about 100 metres and dated to the day before it is
+          published. Nothing else about you is sent anywhere.
         # Without this the app may not start a Live Activity at all, and the failure is a
         # silent no-op rather than an error.
         NSSupportsLiveActivities: true
+    entitlements:
+      path: App/RoadApp.entitlements
+      properties:
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.roadapp.whobuiltthis
+        com.apple.developer.icloud-services:
+          - CloudKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.roadapp.whobuiltthis
@@ -95,6 +108,13 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: App/RoadApp.entitlements
+      properties:
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.roadapp.whobuiltthis
+        com.apple.developer.icloud-services:
+          - CloudKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.roadapp.whobuiltthis.LiveActivity
