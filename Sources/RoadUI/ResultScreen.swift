@@ -17,6 +17,8 @@ public struct ResultScreen: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var copiedRequest = false
+    /// Rendered once when the screen appears rather than on every body evaluation.
+    @State private var share: RoadShare?
 
     private var agency: Agency? {
         record.owner.flatMap { AgencyDirectory.bundled.agency(for: $0.value) }
@@ -38,8 +40,31 @@ public struct ResultScreen: View {
             .navigationTitle(record.segmentName?.value ?? record.routeDesignation?.value ?? "Road")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    if let share {
+                        // Placed here rather than on the drive card: sharing while moving is the
+                        // wrong affordance, and both entry points already funnel through this
+                        // screen — the stationary "Full report" button and the drive card's tap
+                        // both present it with the record snapshotted.
+                        ShareLink(item: share,
+                                  preview: SharePreview(shareContent.roadName ?? "This road")) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                }
+            }
+            .task {
+                let content = shareContent
+                guard let png = ShareCard.png(content) else { return }
+                share = RoadShare(png: png, text: ShareCard.text(content))
             }
         }
+    }
+
+    /// The same plain-string projection the drive card and the Live Activity use, so a shared
+    /// image cannot disagree with what the app showed on screen.
+    private var shareContent: DriveCardContent {
+        DriveCardContent(record: record, placeName: placeName)
     }
 
     // MARK: - Provenance

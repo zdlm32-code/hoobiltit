@@ -9,6 +9,13 @@ import Foundation
 /// It is also the only thing that can tell "no source is mapped for this county" apart from
 /// "a source is mapped and found nothing" — a distinction no individual source can draw, and
 /// the entire content of the sentence the card shows.
+/// **Deliberately not `Codable`.** Every stored property already is, so the conformance would be
+/// a one-word change and looks like a tidy-up — which is exactly why this note exists. Adding it
+/// makes `RoadRecord` `Codable` too, and a serialised record carries a `Provenance` per field
+/// whose `url` embeds the pin's coordinates in the ArcGIS query string, plus the moment it was
+/// fetched. Sharing a record verbatim would hand someone a location log. Leaving this
+/// non-`Codable` makes that impossible by construction rather than by vigilance; roads are shared
+/// as a rendered card instead (`ShareCard`).
 public struct Coverage: Sendable, Hashable {
     public enum Leg: String, Sendable, Hashable, CaseIterable {
         case name, owner, date
