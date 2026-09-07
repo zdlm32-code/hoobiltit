@@ -1,0 +1,106 @@
+name: RoadApp
+options:
+  bundleIdPrefix: com.roadapp
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+# Project-wide, so the app and the embedded Live Activity extension can never disagree about
+# their version — a mismatch there is an App Store validation rejection, and the bump script
+# would otherwise have to find and update two places.
+settings:
+  base:
+    CURRENT_PROJECT_VERSION: 14
+    MARKETING_VERSION: "1.0"
+
+packages:
+  RoadApp:
+    path: .
+
+targets:
+  RoadApp:
+    type: application
+    platform: iOS
+    sources: [App]
+    dependencies:
+      - package: RoadApp
+        product: RoadUI
+      - target: RoadAppLiveActivity
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: hoobiltit
+        # Driven by the build settings below, so bumping CURRENT_PROJECT_VERSION actually
+        # reaches the built app. Left as literals, the plist silently pins the build number
+        # and the second TestFlight upload is rejected as a duplicate.
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleName: hoobiltit
+        # Normally injected by the asset-catalog compiler, but not when the target supplies
+        # its own Info.plist. App Store validation rejects an iOS build without it.
+        CFBundleIconName: AppIcon
+        UILaunchScreen: {}
+        # Without this every TestFlight build sits in "Missing Compliance" until the
+        # encryption question is answered by hand. The app uses only HTTPS.
+        ITSAppUsesNonExemptEncryption: false
+        # iPad builds must offer all four orientations unless the app declares
+        # UIRequiresFullScreen; without this the archive warns and App Store validation
+        # can reject it.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Every v1 source is a public HTTPS endpoint; no ATS exemption is needed.
+        # Drive mode keeps identifying roads with the screen locked; without the background
+        # mode, allowsBackgroundLocationUpdates traps at runtime.
+        UIBackgroundModes:
+          - location
+        NSLocationAlwaysAndWhenInUseUsageDescription: >-
+          Drive mode identifies each road as you drive, which needs location while the screen
+          is locked. Road lookups run on your position and it is never sent anywhere but the
+          public county and state map services that answer them.
+        NSLocationWhenInUseUsageDescription: >-
+          Used only to centre the map on where you are. Road lookups run on the pin you drop,
+          and your location is never sent to any server.
+        # Without this the app may not start a Live Activity at all, and the failure is a
+        # silent no-op rather than an error.
+        NSSupportsLiveActivities: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.roadapp.whobuiltthis
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # Signed with the existing team wildcard profile so it can run on a real device.
+        DEVELOPMENT_TEAM: 6J97QDMGFW
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  # Puts the current road on the lock screen and in the Dynamic Island while drive mode runs.
+  # A Live Activity has to live in a widget extension; the app process pushes updates to it,
+  # which works here because background location already keeps the app alive between fixes.
+  RoadAppLiveActivity:
+    type: app-extension
+    platform: iOS
+    sources: [LiveActivity]
+    dependencies:
+      - package: RoadApp
+        product: RoadCore
+    info:
+      path: LiveActivity/Info.plist
+      properties:
+        CFBundleDisplayName: hoobiltit drive
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.roadapp.whobuiltthis.LiveActivity
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: 6J97QDMGFW
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES

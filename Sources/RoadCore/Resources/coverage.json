@@ -1,0 +1,148 @@
+{
+  "_comment": "Which jurisdictions this build can read, and how. Every service URL here was queried live on 2026-09-07; do not add an entry that has not been. This catalog can name, order, configure and disable sources — it cannot define one, so adding a state on either generic adapter needs no app release, while a county needing Maricopa-depth judgement does.",
+  "schemaVersion": 1,
+  "catalogVersion": 1,
+  "capturedOn": "2026-09-07",
+  "states": {
+    "04": {
+      "id": "az.adot",
+      "displayName": "Arizona Department of Transportation",
+      "adapter": "bespoke",
+      "minSchema": 1,
+      "sourceIDs": [
+        "adot.atis",
+        "adot.funding"
+      ],
+      "_comment": "ATIS is an lrs-events service and the generic adapter could read most of it, but this source encodes judgement the schema deliberately cannot express: selecting between two coincident route namespaces 2 m apart, excluding the 'L - Local (Non-ADOT)' route type, gating ownership on Owner == DOT, and recovering a TRACS number from free text. Config-ifying those would invent five knobs used by one state."
+    },
+    "42": {
+      "id": "pa.penndot",
+      "displayName": "PennDOT roadway inventory",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://gis.penndot.pa.gov/gis/rest/services/opendata/roadwaysegments/MapServer",
+      "layer": 0,
+      "fields": {
+        "name": [
+          "STREET_NAME"
+        ],
+        "routeDesignation": [
+          "TRAF_RT_NO_PREFIX",
+          "TRAF_RT_NO"
+        ],
+        "ownership": "JURIS",
+        "ownershipTable": "penndotJurisdiction",
+        "yearBuilt": "YR_BUILT",
+        "yearImproved": "YR_RESURF",
+        "yearEncoding": "yearNumber",
+        "aadt": "CUR_AADT",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "000",
+          "0000"
+        ]
+      },
+      "dateCaveat": "PennDOT publishes a construction year only for roads it maintains itself.",
+      "_comment": "JURIS is the ownership field: 1 PennDOT (101354), 2 Turnpike Commission (685), 5 local (11737), 6 interstate bridge commission (51). MAINT_RESPON_IND looks like HPMS-times-ten and is not — every downtown Philadelphia segment reads 40, including I-676 at 64768 AADT, and it is populated only on JURIS=1 rows. YR_BUILT is 0 on every JURIS=5 segment, hence nullNumbers."
+    },
+    "22": {
+      "id": "la.dotd",
+      "displayName": "Louisiana DOTD roads and highways",
+      "adapter": "lrsEvents",
+      "minSchema": 1,
+      "service": "https://gis.dotd.la.gov/road/rest/services/Roads_and_Highways_OpenData/MapServer",
+      "routeLayer": 49,
+      "routeIDField": "RouteID",
+      "routeFields": {
+        "name": [
+          "FullName"
+        ],
+        "ownership": "Ownership",
+        "ownershipTable": "hpmsOwnership"
+      },
+      "eventLayers": [
+        {
+          "layer": 91,
+          "displayName": "Louisiana DOTD ownership",
+          "routeIDField": "RouteID",
+          "fromMeasureField": "FromMeasure",
+          "toMeasureField": "ToMeasure",
+          "fields": {
+            "ownership": "Ownership",
+            "ownershipTable": "hpmsOwnership"
+          }
+        },
+        {
+          "layer": 69,
+          "displayName": "Louisiana DOTD last construction",
+          "routeIDField": "RouteID",
+          "fromMeasureField": "FromMeasure",
+          "toMeasureField": "ToMeasure",
+          "fields": {
+            "yearBuilt": "YearLastConst",
+            "yearEncoding": "yearNumber",
+            "nullNumbers": [
+              0
+            ]
+          }
+        },
+        {
+          "layer": 70,
+          "displayName": "Louisiana DOTD last improvement",
+          "routeIDField": "RouteID",
+          "fromMeasureField": "FromMeasure",
+          "toMeasureField": "ToMeasure",
+          "fields": {
+            "yearImproved": "YearLastImprove",
+            "yearEncoding": "yearNumber",
+            "nullNumbers": [
+              0
+            ]
+          }
+        },
+        {
+          "layer": 84,
+          "displayName": "Louisiana DOTD functional system",
+          "routeIDField": "RouteID",
+          "fromMeasureField": "FromMeasure",
+          "toMeasureField": "ToMeasure",
+          "fields": {
+            "functionalClass": "FunctionalSystem",
+            "functionalClassTable": "fhwaFunctionalClass"
+          }
+        }
+      ],
+      "dateCaveat": "Louisiana publishes a construction year for its own control sections, not for local streets.",
+      "_comment": "Layer 49 'Louisiana Roadways' is 576063 features statewide and does include residential streets, so name and owner reach local roads here. Layer 91 is listed before layer 49's own Ownership copy on purpose: the two disagree — Balis Dr reads Ownership 2 on 49 and 4 on 91 — and 91 is the dedicated HPMS event table with measures. Layer 3 'Local Road Names' is empty; do not wire it. RouteID runs two namespaces in one service: '013-04-1-010' for control sections and '033900412201591020' for local roads. Compare raw, never parse."
+    }
+  },
+  "counties": {
+    "04013": {
+      "id": "az.maricopa",
+      "displayName": "Maricopa County",
+      "adapter": "bespoke",
+      "minSchema": 1,
+      "sourceIDs": [
+        "mcdot.rit",
+        "mcdot.centerline",
+        "mcdot.declaration",
+        "mcdot.projects",
+        "mcassessor.parcels"
+      ],
+      "_comment": "Order is load-bearing and reproduces the shipped v1 pipeline. The state entry for 04 runs first, so ADOT claims the interstate before the county source infers a municipal owner for a pin inside Goodyear's limits. The centreline entry is what drive mode probes inside the county: it is the county's own naming and it classifies in words ('Arterial') rather than TIGER's MTFCC codes. Layers 1/2/3 are Highway, Arterial and Local; there is no combined layer and a group layer cannot be queried.",
+      "centreline": {
+        "service": "https://gis.maricopa.gov/arcgis/rest/services/IndividualService/Street/MapServer",
+        "layers": [
+          1,
+          2,
+          3
+        ],
+        "nameField": "FullStreetName",
+        "classificationField": "Classification"
+      },
+      "hasParcels": true
+    }
+  }
+}

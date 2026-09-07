@@ -1,0 +1,1 @@
+{"displayFieldName":"LNAME","fieldAliases":{"LNAME":"LNAME","OWNERSHIP":"OWNERSHIP","FCLASS":"FCLASS"},"fields":[{"name":"LNAME","type":"esriFieldTypeString","alias":"LNAME","length":50},{"name":"OWNERSHIP","type":"esriFieldTypeInteger","alias":"OWNERSHIP"},{"name":"FCLASS","type":"esriFieldTypeInteger","alias":"FCLASS"}],"features":[]}

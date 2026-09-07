@@ -1,0 +1,12 @@
+.build/
+# Xcode derived data and archives from scripts/ — 281 MB, all regenerable.
+build/
+.swiftpm/
+DerivedData/
+# Generated from project.yml by xcodegen; regenerate rather than commit.
+RoadApp.xcodeproj/
+.DS_Store
+
+# App Store Connect credentials
+scripts/.env.local
+__pycache__/

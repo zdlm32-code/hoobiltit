@@ -1,0 +1,1214 @@
+# Endpoint Findings — "Who built this road?"
+
+Maricopa County, Arizona in §§1-6 and 8-9; the national and state tiers in §7 and §§10-12.
+
+Probed live on 2026-09-06. Every URL here was actually called; sample payloads are real
+responses, trimmed but not edited. Anything I did not personally hit is marked *unverified*.
+
+**No API key exists for any v1 source.** Every endpoint below is anonymous. There is nothing
+to keep out of the repo, which is a nice property but also means there is no rate-limit
+allowance to lean on — be polite and cache.
+
+---
+
+## 0. The three-legged question, and which legs actually stand
+
+| Leg | Status | Where it comes from |
+|---|---|---|
+| **Owning jurisdiction** | Solid | MCDOT Road Information Tool, point-in-polygon + maintained-set membership |
+| **When** | Solid for county roads, partial elsewhere | County road declarations (§2.4); ADOT layers 2/3 for state routes; NBI for structures (§7.1) |
+| **Project that funded/built it** | Partial | County TIP/MIP + ProjectStatus; ADOT ATIS for state routes |
+| **What it cost** | Partial, state routes only | ADOT programmed funding (§3.2) |
+| **Contractor + award** | **No API exists** | Deferred to v2 — see §6 |
+
+Read §6 before planning any contractor work. The absence there is structural, not a gap in
+the search.
+
+---
+
+## 1. Primary source — MCDOT Road Information Tool
+
+```
+https://gis.maricopa.gov/dot/rest/services/Maintenance/RoadInformationTool/MapServer
+```
+
+One on-prem ArcGIS Server (`currentVersion 11.5`) publishing the data behind the county's own
+public Road Information Tool. It carries nearly everything v1 needs. `maxRecordCount: 2000`,
+`Query` supported on all layers, `f=geojson` supported.
+
+| Layer | Name | Why it matters |
+|---|---|---|
+| `7` | Municipalities | jurisdiction; also `Ordinance`, `OrdinanceWebLink`, `OrdinanceDate` |
+| `2` | MCDOT Maintained Roads | the ownership discriminator — 10,954 segments |
+| `10` | Current Road Classification | same schema as 2, used for classification/surface |
+| `3` | Subdivision | `SubdivisionName`, `MCRNumber`, `MCRWebLink` (plat) — 31,811/31,860 have the link |
+| `1` | Street Network | `RouteId`, `FullRouteName`, `RouteDirection` |
+| `4`, `12`, `15`, `5`, `14` | Parcel, Public Land Ownership, ROW Permit, Supervisor Districts, Street Light Improvement District | supporting |
+
+### 1.1 Jurisdiction — layer 7 (and the thing that will bite you)
+
+**Layer 7 contains only *incorporated* municipalities. Absence of a feature means
+unincorporated Maricopa County.** A query at Lone Mountain Rd (`-112.528617, 33.767648`) returns
+`{"features": []}` — that empty response *is* the answer, not a failure.
+
+At a Goodyear pin (`-112.4118, 33.4386`):
+
+```json
+{"CityName": "GOODYEAR", "FullCityName": "City of Goodyear",
+ "Ordinance": "156", "OrdinanceDate": 442972800000,
+ "OrdinanceWebLink": "https://mcrogisstorage.maricopa.gov/mcro-gis/AnnexationOrdinances/CitiesAndTowns/Goodyear/Goodyear_84-156.pdf"}
+```
+
+`OrdinanceWebLink` is a live PDF of the annexation ordinance — excellent provenance: you can
+say *when and by which ordinance* this ground became city land.
+
+If you want an explicitly-labelled unincorporated polygon instead of inferring from absence,
+`IndividualService/City/MapServer/0` on the same host returns
+`{"CityName": "UNINCORPORATED MARICOPA COUNTY"}` as a real feature. It lacks the ordinance
+fields. Use layer 7 as primary; this is a useful cross-check.
+
+### 1.2 Ownership — layer 2
+
+Query layer 2 at the pin. **A non-empty result means the county maintains this road. An empty
+result means it does not** — and combined with §1.1 that resolves to "City of X maintains
+this" or "not a county-maintained road."
+
+Real feature at Lone Mountain Rd:
+
+```json
+{"SegmentID": "1065", "OnRoad": "Lone Mountain Rd", "FromRoad": "Crozier Rd", "ToRoad": "215th Ave",
+ "Classification": "01 - Local", "SurfaceType": "Dirt Native", "SurfaceDepth": 0.0,
+ "RoadWidth": 30, "LaneCount": 2, "LengthInFeet": 2618.99,
+ "MaintenanceDistrict": "Northwest", "BoardOfSupervisorDistrict": 4,
+ "RouteID": "12173", "FromDate": 1537747200000}
+```
+
+Full field list: `OBJECTID, SegmentID, FromMeasure, ToMeasure, SubdivisionName, RouteID,
+SurfaceType, SurfaceDepth, BaseType, BaseDepth, SubBaseType, SubBaseDepth, SubgradeType,
+SubgradeDepth, TreatedSubgradeType, TreatedSubgradeDepth, RoadWidth, LaneCount, LengthInFeet,
+OnRoad, FromRoad, ToRoad, FromOffset, ToOffset, Classification, FromDate, CreatedBy,
+CreateDate, EditedBy, LastEditDate, Street, ToDate, InvertedCrown, EstimatedOci, EstimatedOcr,
+CourtesyMaintained, CourtesyMaintainedNote, BoardOfSupervisorDistrict, MaintenanceSide,
+MaintenanceDistrict, Primative`
+
+`EstimatedOci` is a pavement condition index (0–100), e.g. `70.35` in Sun City, `19.74` on a
+neighbouring industrial street. It is *condition*, not age — see §5.1. `EstimatedOcr` carries
+the county's own plain-English rating for the same thing ("Very Poor" … "Very Good") on 10,001
+of 10,954 rows, and is the better one to show a person.
+
+**`CourtesyMaintained` changes the ownership answer for 616 segments.** Its domain is
+`Yes` / `No` / null — *not* `Y`, so `WHERE CourtesyMaintained='Y'` returns zero and reads as
+"this never happens". 616 of 10,954 rows are `Yes`: the county maintains the road but has not
+accepted it into its system, which usually means a developer built it. Reporting those as
+county-owned overstates what the county holds, and for them the recorded plat is the real
+answer to who built the road. `Primative` (sic) flags 45 further segments.
+
+### 1.3 Plat / developer-built streets — layer 3
+
+This is the answer for most residential streets, and it is a **first-class queryable source,
+not a manual fallback.**
+
+```json
+{"SubdivisionName": "SUN CITY UNIT 4C", "SubdivisionLevel": 1, "MCRNumber": "185-38",
+ "MCRWebLink": "https://recorder.maricopa.gov/recording/document-search-results.html?mode=book&docketBook=185&pageMap=38"}
+```
+
+`MCRNumber` is a County Recorder book-page. `MCRWebLink` deep-links the recorded plat.
+Populated on 31,811 of 31,860 rows (99.8%).
+
+**The layer carries no recording date.** Its full field list is `OBJECTID, SHAPE,
+SubdivisionName, SubdivisionLevel, MCRNumber, MCRWebLink, SHAPE_Length, SHAPE_Area` — so a
+`plattedDate` is not derivable here, and the app must send the user to `MCRWebLink` for it
+rather than implying a year. (Goodyear's ROW Dedication layer *does* carry `RECORD_DATE` /
+`RECORD_YEAR`, which is one reason to want the city sources later.)
+
+**Join spatially, never by name.** At the same point, layer 2 reports the subdivision as
+`SUN CITY UNIT 4-C` while layer 3 reports `SUN CITY UNIT 4C`. The hyphen differs. Use the
+polygon that contains the pin.
+
+---
+
+## 2. County projects
+
+### 2.1 TIP / MIP — `BOS/Transportation/MapServer`
+
+```
+https://gis.maricopa.gov/arcgis/rest/services/BOS/Transportation/MapServer
+```
+
+| Layer | Name | Rows |
+|---|---|---|
+| `770` | Linear Improvement (TIP) | 1,054 |
+| `790` | Linear Improvement (MIP) | 3,940 |
+| `760` | Spot Improvement (TIP) | 87 |
+| `780` | Spot Improvement (MIP) | 111 |
+| `810` | MCDOT Maintained Roads | 10,954 |
+| `800` | MCDOT Right-Of-Way | 13,193 |
+
+Real TIP hit at Deer Valley Rd & 109th Ave (`-112.2905, 33.6836`):
+
+```json
+{"ProjNum": "TT0248", "Title": "Deer Valley Road: El Mirage Rd to 109th Ave",
+ "Description": "Widen and extend Deer Valley Road and Wi...", "Phase": "Project Closeout",
+ "ProjectType": "Construction", "OnRoadName": "Deer Valley Rd                          01",
+ "FromRefName": "109th Ave                               01", "ToRefName": "107th Ave ...",
+ "RouteID": "14993", "FromMeasure": 86264.3985, "ToMeasure": 87607.8528}
+```
+
+**Spot layers 760 (TIP) and 780 (MIP) are point geometry**, and they catch work a line query
+structurally cannot see — bridges, signals, drainage, cattle guards. Layer 760's fields are a
+superset of 770's, swapping the from/to linear-referencing pair for `RefLocation`, `RefOffset`,
+`Measure` and `RefName`. Layer 780 is much thinner and, importantly, **carries no road name at
+all**, so it can only ever be accepted when the pin is inside the tight radius.
+
+They matter more than 198 rows suggests. On McDowell Rd at `-111.667181, 33.466228`, project
+`TT0408` appears in *both* layers: the linear record is 401 m away and named
+`"78th St                                 01 Mesa"`, while the spot record sits on the pin and
+is named `McDowell Rd`. Querying only the linear layers finds a project on the wrong street.
+
+MIP (layer 790) is maintenance work — `ProjNum`, `Title` ("Slurry Seal II"), `WorkOrder`,
+`ProjectType` ("Pavement Preservation"), `MIPType`, `ProjectManager`, `Inspector`.
+
+Layer `800` (ROW) is worth knowing: it carries `RecorderNumber`, `RecorderUrl`, and
+`aquisition_type` (`Plat`, `Road Easement`) — a second, independent path to the recorded
+document. Note the field is misspelled `aquisition_type` in the schema.
+
+### 2.2 Project status — `Planning/ProjectStatus/MapServer`
+
+```
+https://gis.maricopa.gov/dot/rest/services/Planning/ProjectStatus/MapServer/1
+```
+
+`ProjectNumber, ProjectTitle, ProjectDescription, CurrentStatus, Phase, PhaseDesc, TimeLine,
+District, ProjectType, Location, ProjectUpdates, route_cd, from_desc, to_desc, begin_measure,
+end_measure`
+
+```json
+{"ProjectTitle": "Sun Lakes Pavement Rehabilitation Units 1-10 and 41",
+ "ProjectDescription": "<p>The Maricopa County Department of Transportation (MCDOT) will be conducting a pavement rehabilitation project in Sun Lakes beginning early April and will run through July 2022.&nbsp;&nbsp;</p>\r\n<p>Pavement rehabilitation includes ..."}
+```
+
+`ProjectDescription` is raw HTML with `\r\n` and `&nbsp;`. Strip before display.
+
+**`ProjectNumber` shares TIP's `TTxxxx` numbering** — 342 rows match `ProjectNumber LIKE 'TT%'`,
+and `TT0248` resolves in both. So once a spatial query on layer 770 has established the
+project number, the status record is a **typed join**, not another guess at geometry. Its
+write-up is public-facing prose and is the better one to show; its `CurrentStatus`
+("Completed", "Design") is more current than the programme layer's `Phase`.
+
+### 2.3 Project geometry does not sit on the centerline
+
+Projects are stored against a linear referencing system, so a project line can be a couple of
+hundred metres from the road it describes. The Deer Valley Road TIP line measures **206 m**
+from a pin on that road — outside a 150 m envelope. A radius tight enough to identify *which
+street you are on* will therefore miss the project that built it, and one wide enough to catch
+it will also catch the next street over.
+
+What works: search a wider corridor (~400 m), accept the nearest match inside the tight
+radius outright, and beyond that accept a project **only when its `OnRoadName` matches the
+segment already identified**. That requires the resolver to hand each source what earlier
+sources concluded.
+
+Sibling service `Planning/TransportationProject/MapServer` (layers 0 Spot / 1 Linear) also
+exists. Other MCDOT folders on `gis.maricopa.gov/dot/rest/services`: `AssetIntegration`,
+`Basemap`, `Maintenance`, `Planning`, `Property`, `RED`, `RoadLocationTool`, `Survey`,
+`Traffic`, `Utilities`.
+
+### 2.3b Countywide street centreline — the only source that names a city street
+
+```
+https://gis.maricopa.gov/arcgis/rest/services/IndividualService/Street/MapServer
+  layer 1 Highway · layer 2 Arterial · layer 3 Local
+```
+
+`FullStreetName` plus `Classification` ("Arterial", "Residential", "Collector-Like"). There is
+no combined layer and a group layer cannot be queried, so all three are queried concurrently
+and the nearest wins.
+
+**This is the only source that covers streets inside incorporated cities.** MCDOT's
+maintained-roads layer stops at the city line and ADOT's covers state routes, so without this
+the app resolved *City of Goodyear maintains this* while being unable to name the street — the
+literal on-screen result was "No road identified here" on an ordinary named road. Verified
+naming streets in Goodyear (`S 159th Dr`), Phoenix (`W Washington St`) and Tempe (`S Rural Rd`).
+
+Coverage is not uniformly tight: at 60 m it misses points that resolve fine at 150 m, so query
+it at the same radius the rest of the pipeline uses.
+
+### 2.4 County road declarations — the date county roads actually have
+
+```
+https://gis.maricopa.gov/dot/rest/services/Property/RightOfWay/MapServer/1
+```
+
+"Open And Declared (Verified)", 3,283 polygons, **`EffectiveDate` populated on 3,222 (98%)**,
+spanning 1900–2026. This is the legal moment a road became a public county road, and it is the
+single most valuable field found in the county stack. Fields: `RoadName, RoadFileNumber,
+RoadFileRecordingNumber, RoadFileRecordingNumberURL, RoadFileMapNumber, RoadFileMapNumberURL,
+EffectiveDate, Township, Range, Section`.
+
+At the app's own 150 m envelope, each test pin returns a handful and the right one is
+identifiable:
+
+| Pin | Features | The match |
+|---|---|---|
+| Lone Mountain Rd | 1 | `LONE MOUNTAIN RD`, RF A518, **2014-09-24** — matches the segment name |
+| Sun City (Santa Fe Dr) | 2 | `SANTA FE DR`, RF 2941, **1982-12-10** — matches the segment name |
+| Williams Dr | 3 | `CROSSRIVER UNIT 8`, RF 5819, **2009-05-20** — matches the *plat*, not the street |
+
+**`RoadName` holds either a street name or a subdivision name**, depending on how the road came
+to exist — which is exactly the two things earlier sources have already resolved. Match against
+the segment name first, then the subdivision; matching neither means saying nothing. A tight
+point-in-polygon envelope is *not* enough: at 1 m and 30 m Lone Mountain returns 0, because the
+declaration polygon does not cover the pin.
+
+### 2.5 How the county acquired the road
+
+`Property/RightOfWay/MapServer/0` (also served as `BOS/Transportation/MapServer/800`) —
+13,193 polygons, **no date field**, but a clean `aquisition_type` domain (note the misspelling
+in the schema):
+
+| value | rows | | value | rows |
+|---|---|---|---|---|
+| Road Easement | 5,617 | | Quit-Claim Deed | 439 |
+| Subdivision | 3,012 | | Final Order of Condemnation | 381 |
+| Warranty Deed | 1,467 | | Federal Patent Easement not recorded | 222 |
+| Other | 724 | | ADOT Resolution | 96 |
+| Plat | 547 | | Drainage Easement | 33 |
+| State Lease | 465 | | Slope Easement | 21 |
+
+`RecorderUrl` is populated on 98.8% of rows, alongside `RightOfWayWidth` and `RecorderNumber`.
+Live results: Lone Mountain Rd → *Road Easement*, recorded 1977; Sun City → *Subdivision*;
+MC 85 → *ADOT Resolution*. The acquisition document and the declaration are different records
+with different dates and must not be conflated.
+
+---
+
+### 2.6 County Assessor parcels — who owns the land the road runs through
+
+```
+https://gis.mcassessor.maricopa.gov/arcgis/rest/services/MaricopaDynamicQueryService/MapServer/3
+```
+
+Polygon layer, `maxRecordCount: 1000`, anonymous. Ported from the cellsurveys operator
+dashboard, which queries the same service for GPS points. Note the host: `mcassessor.maricopa.gov`
+(the public site) is Cloudflare-fronted and serves HTML, but **`gis.mcassessor.maricopa.gov` is a
+plain ArcGIS server and answers fine**.
+
+Fields worth having: `APN`, `APN_DASH` (punctuated), `OWNER_NAME`, `PHYSICAL_ADDRESS`,
+`LAND_SIZE` (square feet), `CONST_YEAR`, `SUBNAME`, **`MCRNUM`**, `LOT_NUM`, `DEED_DATE`,
+`SALE_DATE`, `SALE_PRICE`, `STR`. There is **no `SUBDIVISION` field** — it is `SUBNAME`, and
+asking for the wrong name fails the whole query with a bare `Failed to execute query`.
+
+**A road pin is normally in the right-of-way, between parcels, so point-in-polygon returns
+nothing.** At Williams Dr a pin-sized box finds zero parcels; an 80 m box finds ten. So:
+containment first (`.direct`), frontage second (`.spatial`), and the two must be labelled
+differently — the owner of a parcel beside a road is not the owner of the road.
+
+What this adds that nothing else has:
+
+| | |
+|---|---|
+| `OWNER_NAME` | for a street the county has not accepted, often who is actually responsible |
+| `CONST_YEAR` | when the buildings went up, which brackets when a developer street was laid out |
+| `SUBNAME` + `MCRNUM` | the same plat identifiers MCDOT returns, from an unrelated agency |
+
+The corroboration is real. At Williams Dr the frontage reads `CROSSRIVER UNIT 8 / 706-34`,
+built **2008–2009** — and the county declared that road public on **2009-05-20**. At Sun City
+and Goodyear the Assessor's `SUBNAME`/`MCRNUM` match MCDOT's plat exactly. Two agencies
+agreeing is worth surfacing, because most answers in this app rest on one source.
+
+`CONST_YEAR` is a *string* and vacant land carries `"0"`, not null.
+
+**Drawing boundaries from this layer** needs two things. `maxAllowableOffset` roughly halves the
+payload for lines that are pixel-identical at phone zoom (200 m radius: 44 KB → 19 KB; 500 m:
+318 KB → 151 KB). And the layer caps a response at **1,000 features without saying so** — a
+1 km radius already hits it, returning a partial cadastre indistinguishable from a complete
+one. A 500 m radius returns 678, so the overlay refuses to draw above ~0.009° of span.
+
+Note also that MapKit inflates a requested span to the view's aspect ratio: asking for 0.004°
+yields 0.0058–0.0063° in practice, so a threshold has to clear the app's own default zoom or
+the overlay flickers on and off.
+
+---
+
+## 3. State routes — ADOT
+
+**Corrections to assumptions worth recording:** `gis.azdot.gov/arcgis/rest/services` does not
+exist (404, IIS — ADOT has no public on-prem ArcGIS Server; everything is ArcGIS Online). And
+`services.arcgis.com/ZzrwjTRez6FJiOq4` is **Utah DNR**, not ADOT — it is a plausible-looking
+decoy with 2,146 services and zero Arizona content.
+
+The real org:
+
+```
+https://services1.arcgis.com/XAiBIVuto7zeZj1B/arcgis/rest/services/ATIS_prod_gdb/FeatureServer
+```
+
+52 layers — ADOT's ATIS linear referencing system published whole. Four matter:
+
+| Layer | Name | Fields of interest |
+|---|---|---|
+| `29` | LRSE_OwnerMaint | `County`, `Ownership`, `Maintenance`, `Owner` |
+| `1` | LRSN_ATIS_Routes | `RouteNameShort`, `RouteType`, `RouteSubtype`, `NCCountyCode` |
+| `3` | **LRSE_YearLastConstruction** | `YearLastConstruction`, `YearBuiltComment`, `SourceYear` |
+| `24` | LRSE_ProjectSegment | `TracsNumber`, `InServiceYear`, `InServiceDate` |
+| `2` | LRSE_YearLastImprovement | `YearLastImprovement`, `YearBuiltComment` |
+
+**Layer 3 is the only genuine construction-date field found in any source, anywhere.** On I-10
+at `-112.3756, 33.4602`:
+
+```json
+{"RouteId": "  I 010                         ",
+ "YearLastConstruction": "20110130", "YearBuiltComment": "Per H729601C"}
+```
+
+`YearBuiltComment` embeds a TRACS number in free text; `[A-Z]{1,2}[0-9]{5,6}[A-Z]` extracts it.
+
+### 3.1 ATIS stores every road twice, and it changes how you select a route
+
+`RouteId` is a fixed-width composite, and its leading characters are a namespace:
+
+| `RouteId` | `RouteNameShort` | `RouteType` |
+|---|---|---|
+| `"  I 010                         "` | I-10 | I - Interstate |
+| `"07  I 10                        "` | *null* | L - Local (Non-ADOT) |
+| `"  I 010                       0 "` | I-10 nonCard | I - Interstate |
+| `"  I 010127G                     "` | I-10 Exit 127 G-Ramp | I - Interstate |
+| `"07  BULLARD             AVE     "` | *null* | L - Local (Non-ADOT) |
+
+Every ADOT route has a **local mirror with identical geometry**. Measured from a pin on I-10
+at Exit 127, the pairs are exactly coincident and the next distinct road is 22 m further out:
+
+```
+   1.7 m  [ADOT ]  '  I 010                         '  I-10                   70-Interstate
+   1.7 m  [local]  '07  I 10                        '  —                      98-Non-ADOT Rte
+  24.1 m  [ADOT ]  '  I 010127E                     '  I-10 Exit 127 Crossing 75-Minor Ramps
+  24.1 m  [local]  '07  BULLARD             AVE     '  —                      98-Non-ADOT Rte
+  31.3 m  [ADOT ]  '  I 010                       0 '  I-10 nonCard           70-Interstate
+```
+
+Two naive rules both fail. Taking the **nearest feature** is a coin flip between a route and
+its own mirror, and silences ADOT on the interstate itself. Taking the **nearest ADOT
+feature** lets a freeway 100 m away claim a residential pin. What works: find what is
+nearest, then prefer the ADOT record among the features sitting at that same spot — a
+tolerance of a couple of metres separates "same road, other namespace" from "different road".
+
+The `"...0 "` suffix is the non-cardinal carriageway (`RouteNameShort: "I-10 nonCard"`), a
+second record for the same highway. Both carry the same construction date, so matching one
+exactly is sufficient.
+
+Layer 29 at the same point returns `"Ownership": "DOT-Arizona Department of Transportation"`.
+**Caveat, tested:** layer 29 returned **zero features** at my unincorporated county point
+(`-112.528617, 33.767648`), so despite carrying some non-state values it is *not* a general
+jurisdiction resolver. MCDOT layer 7 stays primary for that.
+
+**And do not trust layer 29's fields on roads ADOT does not own.** Its row for MC 85 — a
+Maricopa County road — reads:
+
+```json
+{"RouteId": "00  MC 85                     0 ", "County": "001-Apache",
+ "Ownership": "MMA-Maricopa County DOT (2)", "Owner": "MMA"}
+```
+
+`001-Apache` is a county four hundred kilometres away. The `Owner` code is the gate: read
+ownership and county from this layer **only** when `Owner == "DOT"`, and leave everything else
+to the agency that actually maintains the road. Owner codes seen in Maricopa: `DOT` (ADOT),
+`MMA` (Maricopa County DOT), `GDY` (Goodyear).
+
+### 3.2 Programmed cost — the money leg
+
+Two services on the same ADOT org, both keyless, both spatially queryable, joined on TRACS:
+
+```
+.../mapped_route_export_July7/FeatureServer/0     3,294 rows — dollars, lead agency, fiscal year
+.../RCI_Tracker/FeatureServer/0                   TRACS + exact in-service date (epoch ms)
+```
+
+At the I-10 pin, `mapped_route_export_July7` returns 4 features; TRACS `H881901C` resolves to
+**$4,160,000, FFY2018, lead agency ADOT, MPO/COG MAG**, project title "PERRYVILLE ROAD -
+BULLARD AVENUE". `RCI_Tracker` gives that project's exact opening: **2019-03-26**, where ATIS
+layer 24 has only the year.
+
+Three things to get right:
+- **Dollars sit on whichever project is currently in the STIP**, which is usually *not* the one
+  credited with construction. `H729601C` (construction) has no funding row; `H881901C` (most
+  recent work) has the money. Try both project numbers.
+- `TRACS_NUM` is sometimes a comma-separated list (`"T037001D, T037001X"`), so match by
+  containment, not equality.
+- `ROUTE_ID` here is trimmed (`"I 010"`) unlike ATIS's fixed-width padded form. Normalize
+  before joining.
+- Amounts are spread across `PRG_PRIOR` and `PRG_2023`…`PRG_2027`/`PRG_FUTURE`; the programmed
+  total is their sum.
+
+Superseded: `ADOT_eSTIP_ShapefileExport_3142023` is the same schema with 590 rows and returns
+nothing at Goodyear. `5YRPlan2023_2024_gdb` is 14 statewide HSIP rows with no Maricopa
+geometry. Neither is worth wiring.
+
+Curated AZGeo mirrors (org `services6.arcgis.com/clPWQMwZfdWn4MQZ`) are cleaner and properly
+typed but carry less detail: `ADOT_OwnershipAndMaintenance_2024`,
+`ADOT_StateHighwaySystem_SHS_view`, `ADOT_AllRoadsNetwork_2024`, `SHS_Route_Network_View`
+(filter `ReportYear` or you get 2021/2022/2024 duplicates), `HPMS_*_Data`.
+
+ADOT program data is weak: `ADOTProjects_AZGEO` is a 26-feature draft with no TRACS or cost;
+`ADOT_eSTIP_ShapefileExport_3142023` has `TRACS_NUM` + programmed dollars by FY but is frozen
+at 2023-03-14; `5YRPlan2023_2024_gdb` has route + mileposts + FY but no TRACS, also frozen.
+`azdot.gov/jsonapi` (Drupal JSON:API) serves `node--project` but the payload is narrative
+prose only — no TRACS, route, milepost, cost, or contractor. Pass `filter[status]=1` or you
+get an empty `data` array with a `meta.omitted` block.
+
+---
+
+## 4. The query form that actually works
+
+**`distance` + `units` silently returns zero features on on-prem ArcGIS Server.** No error, no
+warning — just `{"features": []}`. Verified on `gis.maricopa.gov` at a point where an envelope
+returns a feature, in both `inSR=4326` and `inSR=102100`:
+
+```
+point + distance=100 units=esriSRUnit_Meter   -> 0 features
+envelope ±0.0015°, inSR=4326                  -> 1 feature (Lone Mountain Rd)
+```
+
+Independently reproduced on `maps.goodyearaz.gov`. It *does* work on ArcGIS **Online**
+(`services*.arcgis.com`) — verified on ADOT ATIS, where point+distance and envelope return
+byte-identical 7-feature results.
+
+**Rule: always build an `esriGeometryEnvelope` in `inSR=4326`.** It works on every host and
+eliminates a whole class of silent-empty bug. Canonical query:
+
+```
+{layer}/query
+  ?geometry={xmin},{ymin},{xmax},{ymax}
+  &geometryType=esriGeometryEnvelope
+  &inSR=4326
+  &spatialRel=esriSpatialRelIntersects
+  &outFields=*
+  &returnGeometry=true
+  &outSR=4326
+  &f=json
+```
+
+An envelope returns every feature crossing the box, so **nearest-segment selection is
+client-side**: request geometry and pick the true nearest by point-to-polyline distance.
+
+Other server quirks confirmed:
+- `LIKE` is case-sensitive (SQL Server). `FullStreetName LIKE '%ESTRELLA%'` matched nothing
+  against stored `"W Yuma Rd"`-style mixed case. Use `UPPER()`.
+- `f=geojson` is supported and decodes without an Esri SDK.
+- TLS is clean, HTTP/1.1, no ATS exemption needed.
+
+---
+
+## 5. Where the data model has to bend
+
+### 5.1 There is no construction year, and the obvious field is a trap
+
+`FromDate` on the maintained-roads layer looks like a build date. It is **ArcGIS temporal
+versioning** — the "record valid from" half of a `FromDate`/`ToDate` pair. Sorted descending,
+its top values are dated within the last few days:
+
+```
+{"OnRoad": "Lower Buckeye Rd", "FromDate": 1788307200000}   -> 2026-09-02
+{"OnRoad": "Granada Dr",       "FromDate": 1787011200000}   -> 2026-08-18
+```
+
+`-2208988800000` (1900-01-01) is the null sentinel; 10,689 of 10,954 rows carry a non-sentinel
+value, all of them edit dates.
+
+**Do not model a `constructionYear`.** Model independent, separately-sourced, nullable
+fields, each with its own provenance:
+- `declaration` — the county road-file declaration date (§2.4). **This is the closest thing to
+  a build date a county road has, and it reaches back past 1970.**
+- `plattedDate` — from the subdivision plat (§1.3). *Not fillable* — see the closed note below.
+- `lastKnownImprovement` — from an overlapping project record (§2)
+- `yearLastConstruction` / `yearLastImprovement` — state routes only, ADOT layers 3 and 2 (§3)
+- `bridge.yearBuilt` / `yearReconstructed` — structures only (§7.1), and the only years that
+  survive from before the 1960s.
+
+A road can be declared, constructed, resurfaced and rebuilt in four different years. The UI
+shows whichever exist as separate labelled rows and never fuses them.
+
+**`plattedDate` is closed, not pending.** The plat layer carries no date; the Recorder is
+behind Cloudflare `cf-mitigated: challenge`, so `URLSession` will never fetch it (the same
+block that makes all of `*.azmag.gov` unusable); and the Assessor's `/api/` path returns HTML
+and is token-gated. The plat and declaration links work in a browser and stay links.
+
+### 5.2 Jurisdiction is not an attribute of a centerline
+
+No county centerline layer has an owner column —
+`IndividualService/Street/MapServer/2` has exactly `FullStreetName, PrefixDirection,
+StreetName, StreetType, PostDirection, Classification` and nothing else. Ownership is
+*derived*: municipality polygon → maintained-set membership → ADOT route. `RoadRecord.owner`
+is a computed conclusion and its provenance must cite the polygon layer, not the centerline.
+
+**Source order is part of the correctness of that conclusion.** A pin on I-10 at
+`-112.3756, 33.4602` sits inside Goodyear's municipal boundary, so county-only resolution
+reports "City of Goodyear" — the interstate is ADOT's. Municipality containment is a valid
+*jurisdiction* answer and a wrong *ownership* answer for state routes. When the ADOT source
+lands it must run **before** the county source in the resolver, so its unambiguous
+`LRSE_OwnerMaint` verdict claims `owner` first.
+
+### 5.3 String padding and type abuse
+
+- MCDOT **project** layers (`BOS/Transportation` 760/770/780/790) pad `OnRoadName`,
+  `FromRefName` and `ToRefName` with a trailing route-segment ordinal:
+  `"Williams Dr                             01"`. **The ordinal is not always `01`** — 02, 03,
+  04, 10, 14, 15, 19, 22, 31 and 1001–1004 all occur — and the padding is not fixed width
+  (observed raw lengths 15, 16, 42, 44, 47, 52). Identify it by the padding, not by value.
+- **The ordinal is often followed by a jurisdiction**: `"52nd Pl        01 Mesa"`,
+  `"Buttonwood Dr        01 Maricopa County"`, also `Sun Lakes`, `Chandler`, `Scottsdale`,
+  `Peoria`, `Phoenix`, `Buckeye` — 68 of 438 distinct values in layer 770. A rule anchored to
+  end-of-string (`\s{2,}\d{1,4}$`) leaves these untouched and the name gate then fails to
+  match a segment plainly called "52nd Pl". Strip from the padded ordinal onward
+  (`\s{2,}\d{1,4}\b.*$`); nothing but a jurisdiction or a repeated ordinal was ever observed
+  after it, and jurisdiction is resolved authoritatively from the municipality polygon anyway.
+- **Do not apply that stripping globally.** The maintained-roads layer (RIT layer 2) has *no*
+  padded suffixes and *does* carry genuine road names ending in numbers: **`MC 85`,
+  `Old US 80`, `Old SR 87`, `FR 206`**. A naive "strip trailing two digits" rule renders the
+  county's own highway as `MC`. Requiring two or more spaces is what keeps them intact.
+  One row in layer 770 is stored as `"Lower Buckeye Rd 01"` with a single space — a duplicate
+  of the correctly-padded value — and is the one case this rule deliberately misses.
+- ADOT: `"  I 010                        "`, and **every measure and date is
+  `esriFieldTypeString`** (`"20110130"`, `"-4e-7"`). Numeric SQL `where` clauses on these are
+  unreliable; parse in the client.
+- Avondale's `PavementMain` domain contains both `YES` and `Yes`. Normalize on decode.
+
+### 5.3b A source must not name a road it is merely near
+
+Every naming source finds the *nearest* road it holds, and none of them originally asked whether
+that road was plausibly the one under the pin. With partial coverage the two are different
+questions, and the failure is silent.
+
+Verified at `-111.726021, 33.276976` — 2950 E Athena Ave, Gilbert:
+
+| Source | Nearest road it can see |
+|---|---|
+| `IndividualService/Street` (countywide centreline) | **E Germann Rd, 76 m** |
+| Census TIGER/Line | **E Athena Ave, 5.9 m** |
+
+The county centreline **does not contain E Athena Ave at all** — the subdivision is newer than
+the layer — so it answered with the arterial a block away, and being earlier in the pipeline it
+won. TIGER, which has the street, was then skipped because the road had "already been named".
+The symptom reads as a calibration fault: the crosshair is on one street and the card names
+another.
+
+`RoadProximity.onRoadMeters` (60 m) now gates every namer. A source beyond it contributes
+nothing and says so in its note, and the next source gets its turn.
+
+**This also means test pins must sit on their road.** The original Lone Mountain pin
+(`-112.5251, 33.7686`) was eyeballed and sat **104 m** from Lone Mountain Rd's centreline — far
+enough that the gate correctly refuses it. It has been moved onto the centreline, derived from
+the layer's own geometry, as §9 says the later pins were.
+
+### 5.3c `outSR` is not optional when you measure anything
+
+`maxAllowableOffset` is interpreted in the units of the *output* spatial reference (§10.4), and
+so is every coordinate you get back. Omit `outSR` and geometry arrives in **Web Mercator** while
+looking perfectly well-formed. A distance computed against it as if it were degrees comes out
+around 1.09 × 10¹² metres — large enough to be obviously wrong if you print it, and completely
+invisible if you only ever take a minimum, because every candidate is wrong by the same factor.
+
+`ArcGISClient` always sends `outSR=4326`, so the app is safe. Captured fixtures are not: two of
+them were recorded without it and silently made a nearest-feature test meaningless.
+
+### 5.4 No shared segment ID across sources
+
+MCDOT `SegmentID`, ADOT `RouteId`+measures, and MAG `dbo_vwTIPMapData_SegmentID` are disjoint
+namespaces. Cross-source joins are fuzzy name + geometry proximity only. `RoadRecord`
+therefore keys on **the pin**, not on a road ID, and every non-primary field carries a
+match confidence.
+
+### 5.5 Project geometry is linear-referenced
+
+TIP/MIP records are `RouteID` + `FromMeasure`/`ToMeasure` + offsets, not centerline shapes.
+Project → segment is proximity-and-name matching. Label it that way in the UI.
+
+### 5.6 Subdivision names differ between layers
+
+`SUN CITY UNIT 4-C` (layer 2) vs `SUN CITY UNIT 4C` (layer 3), same location. Join spatially.
+
+---
+
+## 6. Contractor and award — no API exists
+
+This is the honest state of leg 3, and why it is deferred.
+
+**ADOT** publishes bid results as server-rendered HTML with no JSON/CSV API:
+- As-read: `https://cnsads.azdot.gov/as-read` → 13 rows, columns
+  `Route County Milepost | TRACS # | Project # | Bid Opening`. Detail pages
+  `/as-read/details/{id}` carry the actual bid table. The `DEPARTMENT` row is ADOT's own
+  engineer's estimate, not a bidder — filter it out; low bidder is the min of the rest.
+- Tabulations: `https://apps.azdot.gov/cnsaws/tabulations` → 29 rows with `Board Award Date`,
+  linking to per-letting PDFs on S3.
+
+**The killer is retention: ADOT keeps bid tabulations only four months past the award date.**
+You cannot look up who paved a road in 2011. Older records need a formal public-records
+request. TRACS format is `[A-Z]{1,2}[0-9]{5,6}[A-Z]` and *does* join cleanly to
+`LRSE_ProjectSegment.TracsNumber`, so a slowly-accumulated TRACS→contractor table is viable
+over time — but it cannot be backfilled.
+
+**Maricopa County** Board of Supervisors uses CivicPlus AgendaCenter
+(`https://www.maricopa.gov/AgendaCenter`). Search returns 186 KB of HTML wrapping PDF agendas.
+No API.
+
+**Legistar**, for the west valley, is mostly a dead end:
+- `webapi.legistar.com/v1/goodyear` responds, but coverage is **2013-01-28 → 2021-02-02 and
+  stops dead**. Goodyear migrated off Legistar in early 2021. Useful as a historical archive
+  only.
+- Goodyear now uses `goodyearaz.open.media` — Drupal 7 + React, WAF-blocks plain `curl`,
+  session lists rendered client-side, and `/api/*`, `/graphql`, `/sitemap.xml` all 404.
+  Headless scraping + PDF extraction only.
+- Avondale, Buckeye, Surprise, Peoria, Glendale are **not** Legistar cities.
+- Phoenix and Mesa *are*, fully current, with working OData (`$filter`, `$top`, `$orderby`,
+  `$select`, and `substringof('x',Field) eq true` — the older OData dialect, not `contains()`).
+
+**Two traps worth writing down:**
+1. Legistar client code `maricopa` is the **City of Maricopa in Pinal County**, not Maricopa
+   County. Its `/bodies` returns a 7-member City Council. Easy to mistake for the county.
+2. `https://{anything}.legistar.com/Calendar.aspx` returns **HTTP 200 for every subdomain**,
+   including nonsense ones. It is a wildcard — testing the InSite subdomain proves nothing.
+   Only `webapi.legistar.com/v1/{client}/bodies` is a real existence test.
+
+### USAspending: drop it, do not defer it
+
+`https://api.usaspending.gov/api/v2/search/spending_by_award/` is live, keyless, and pleasant
+(`limit` max 100; data floor 2007-10-01). It is also the wrong tool, in a way that is actively
+dangerous for this app:
+
+- **Geography bottoms out at ZIP+4.** `place_of_performance` returns county, city,
+  congressional district, zip5/zip4 — `address_line1` is null. No lat/long, no route, no
+  milepost. You cannot tie an award to a segment geometrically.
+- **81% of Maricopa NAICS 237310 dollars are DoD** — Luke AFB taxiways behind a fence. FHWA
+  appears as $8.6M of $195M.
+- **The keyword filter produces confident false positives.** Searching `"Litchfield Road"`
+  returns four Lockheed Martin airborne-radar contracts totalling $58.9M — because the keyword
+  index searches a legacy FPDS blob that embeds the *recipient's mailing address*, and
+  Lockheed's office is at 1300 S Litchfield Rd. Searching `"Yuma Road"` returns Yuma, Arizona.
+  `"Estrella Parkway"` returns nothing.
+- **Sub-award coverage is negligible**: one sub-award against 436 primes.
+
+The structural reason: FHWA money moves as **formula grants** to ADOT, which sub-allocates to
+MAG and to cities, which procure their own paving contractors. That contract never enters
+FPDS. For a normal public street in Maricopa County, USAspending will not tell you who built
+it. At most it is an optional "federal contracts nearby" panel with an explicit disclaimer.
+
+---
+
+## 7. National sources
+
+### 7.1 National Bridge Inventory — the oldest build years anywhere
+
+```
+https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_National_Bridge_Inventory/FeatureServer/0
+```
+
+USDOT/BTS, keyless, 128 fields, point geometry. **2,854 structures in Maricopa County**
+(`STATE_CODE_001 = '04' AND COUNTY_CODE_003 = '013'` — the code columns are zero-padded
+*strings*, so `= 4` and `= 13` silently match nothing).
+
+The fields that matter: `YEAR_BUILT_027`, `YEAR_RECONSTRUCTED_106`, `OWNER_022`,
+`FACILITY_CARRIED_007`, `FEATURES_DESC_006A`, `STRUCTURE_NUMBER_008`, `ADT_029`,
+`YEAR_ADT_030`. `YEAR_RECONSTRUCTED_106` uses **0**, not null, for "never rebuilt".
+
+This is the only source that separates original construction from reconstruction. At I-10
+Exit 127: *I 10 over Bullard Ave OP, **built 1978, reconstructed 2011**, owner 01, ADT 151,675
+(2019)* — and ADOT's `YearLastConstruction` for that stretch is 2011-01-30. Reporting only the
+later date would erase a third of a century. The oldest county-owned structures go back
+further still: `Old US 80 over Gila River, built 1927, reconstructed 2012`.
+
+`OWNER_022` is an independent ownership cross-check: `01` State highway agency · `02` County ·
+`03` Town/township · `04` City · `26` Private · `27` Railroad · `62` Bureau of Indian Affairs.
+
+**It is a sometimes-source and must be gated.** It hit 1 of 6 test pins at 150 m and 3 of 6 at
+400 m. Match on `FACILITY_CARRIED_007` against the segment already identified: at the Sun City
+pin two structures fall inside 400 m carrying *Royal Oak Rd* and *99th Ave*, and reporting
+either to someone standing on Santa Fe Dr would be exactly the confident false positive that
+got USAspending dropped.
+
+Not useful on the same org: `Bridges_Funding` is state-level aggregate, `NBI Element Data` is
+component condition, and the HPMS services cover only the National Highway System. ADOT's own
+`ATIS` layer 17 `LRSE_Structure` has `YearBuilt` on just 9.5% of rows and carries no NBI
+number — NBI is the better source.
+
+---
+
+### 7.2 Jurisdiction — which county am I in?
+
+```
+https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/State_County/MapServer/1
+https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer/4
+```
+
+Keyless, ~0.3-0.6 s. Returns `{"GEOID":"48201","NAME":"Harris County","STATE":"48"}` and, where
+the pin is inside an incorporated place, `{"GEOID":"4835000","NAME":"Houston city"}`. An empty
+place response is a real answer — unincorporated county — not a failure; verified at Lone
+Mountain.
+
+`State_County` publishes 71 layers, repeated state/county pairs one per vintage. **Layer 1 is
+the current one.** It rejects the `x,y` comma shorthand with HTTP 400 but **accepts
+`esriGeometryEnvelope`**, so a 2 m envelope answers a point query through the existing client.
+
+**`NAME` is rendered verbatim and never suffixed.** Louisiana returns `"East Baton Rouge
+Parish"`, Alaska returns boroughs and census areas, Virginia has independent cities that are
+county equivalents. Appending "County" is wrong in four states and Puerto Rico.
+
+The county polygon is fetched once with `maxAllowableOffset=0.001` **and `outSR=4326`** (§10.4)
+and then reused: containment is answered locally by ray casting, so a drive stays in one county
+for one request rather than one per GPS fix. Measured sizes at that offset:
+
+| County | Vertices | Size |
+|---|---|---|
+| Philadelphia PA | 109 | 2.3 KB |
+| Suffolk MA | 128 | 2.8 KB |
+| Maricopa AZ | 219 | 4.7 KB |
+| East Baton Rouge LA | 269 | 5.8 KB |
+| King WA | 388 | 8.3 KB |
+
+### 7.3 Census TIGER/Line — the name, anywhere
+
+```
+https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Transportation/MapServer
+```
+
+Layers are split by road class and a query does **not** fall through between them, so all three
+are asked at once: **2** primary (17,678), **6** secondary (248,117), **8** local
+(**16,098,190** — everything else). Fields `NAME, MTFCC, RTTYP`.
+
+**There is no ownership, no maintainer and no construction date. It is a gazetteer.** `RTTYP`
+is how a route is *signed*, not who maintains it — Williams Dr, a county arterial, is plain
+`S1400`/`M`.
+
+**The radius floor is real.** A 60 m envelope in downtown Boston returns **nothing on all nine
+layers**, not because of a coverage gap but because TIGER centrelines are positionally coarse.
+At 150 m — the app's own search radius — Boston returns eleven streets, Baton Rouge seven,
+Philadelphia four, Houston ten. Anything below ~120 m makes this source silently useless in
+exactly the dense places it is most needed.
+
+MTFCC classes worth naming: `S1100` primary · `S1200` secondary · `S1400` local street ·
+`S1500` vehicular trail · `S1630` ramp · `S1640` frontage road · `S1730` alley · `S1740`
+service road. Walkways, stairways and bike paths are not roads this app answers for.
+
+### 7.4 FHWA National Highway System — the only national ownership
+
+```
+https://geo.dot.gov/server/rest/services/National_Highway_System/MapServer/0
+```
+
+Keyless, **498,226 features**, `maxRecordCount` 1000, `supportsStatistics: false`. Fields
+`LNAME, SIGN1, NHS, OWNERSHIP, FCLASS, AADT, STFIPS, CTFIPS, ROUTEID, YEAR`. Real HPMS ownership
+codes. Live in Boston:
+
+```
+JOHN F FITZGERALD EXWY  SIGN1 I93  OWNERSHIP 1  FCLASS 1  AADT 111296
+TREMONT ST              SIGN1 " "  OWNERSHIP 4  FCLASS 3  AADT  15848
+```
+
+That reads directly as *I-93 is state-owned, Tremont St is the city's*.
+
+**Its limit is the point.** The NHS is interstates, principal arterials and connectors — roughly
+4% of the network. Williams Dr returns empty; so does downtown Houston. Off the NHS this source
+says nothing about ownership, and that is the honest edge of what is knowable nationally.
+
+**Name-gated, like NBI in §7.1.** NHS lines sit tens of metres off a local centreline, so an
+envelope beside a city street will return the expressway two blocks over. Unless `LNAME` matches
+the road already identified, this source contributes nothing.
+
+`YEAR 2018` throughout — that is the data year, not a construction date.
+## 8. Second-wave sources (verified, deliberately not in v1)
+
+### MAG regional TIP
+
+```
+https://services1.arcgis.com/MdyCMZnX1raZ7TS3/arcgis/rest/services/TIP_data_gdb/FeatureServer
+```
+
+Layers `0` Points (50), `1` Lines (291), `2` Polygons (108), `3` Multipoints (18), table
+`4` TIP_phase (8,266 rows, work years 2003–2050). Keyless, CORS-open, `f=geojson`. Join key:
+`dbo_vwTIPMapData_SegmentID` → `TIP_phase.SegmentID`. `TIP_phase` carries `TIPID`, `Phase`,
+`WorkYear`, `FederalAmount`/`RegionalAmount`/`LocalAmount`, `ObligationDate`, and **`TRACS`**.
+
+At Yuma Rd & Estrella Pkwy it returns the real project:
+
+```json
+{"dbo_vwTIPMapData_AgencyName": "Goodyear",
+ "dbo_vwTIPMapData_ProjectName": "Yuma Road: Estrella Parkway to Litchfield Road",
+ "dbo_vwTIPMapData_ProjectDescription": "Construct six lanes with landscaped median",
+ "dbo_vwTIPMapData_LocalAmount": 34213675, "dbo_vwTIPMapData_STIPID": "105943",
+ "dbo_vwTIPMapData_DateActiveYear": 2028, "dbo_vwTIPMapData_VersionStatus": "Approved"}
+```
+
+Held out of v1 for three reasons: it is a **forward-looking program** (work years 2028, 2030 —
+not a build history), it returned **0 features** at the unincorporated test point, and every
+field is prefixed `dbo_vwTIPMapData_` / `SCDATALOADER_SCORPIONS_Lines_` and needs a
+normalization map.
+
+**`*.azmag.gov` is unusable from a device.** `geo.azmag.gov`, `azmag.gov` and the TIP program
+page all return HTTP 403 with `cf-mitigated: challenge` — an interactive Cloudflare challenge,
+not a User-Agent sniff. A full desktop UA does not get through. `URLSession` never will. Use
+the ArcGIS Online org above, which is not behind Cloudflare.
+
+*Decoy warning:* the top ArcGIS Online search hits for "MAG TIP"
+(`services2.arcgis.com/EiGeaCDLpVDPqdJ5`, owner `msilski_MAG`) are **Mountainland Association
+of Governments, Orem, Utah**. Same acronym, wrong state.
+
+### City GIS
+
+Both city servers use `/server/rest/`, **not** `/arcgis/rest/` — the latter 404s.
+
+**Goodyear** — `https://maps.goodyearaz.gov/server/rest/services`
+- `Basemaps/Transportation/MapServer/4` "Streets" (**layer 4**): `Ownership` (`Public`/
+  `Private`/`Unknown`), `MaintBy` (`Goodyear`/`MC`/`ADOT`/`Private`/`Other`), `CLASS`,
+  `STATUS`, `SOURCE` (includes **`PLAT`** — flags developer-platted segments), `L_jur`/`R_jur`.
+  `DateAdded` is a GIS record date, not construction. No CIP id on the centerline.
+- `.../MapServer/7` "ROW Dedication": `ORD_NO`, **`MCR_NO`** (Recorder book-page), `DEED_NO`,
+  `ROW` (street names), `RECORD_DATE`, `RECORD_YEAR` — the developer-dedication paper trail.
+- `.../MapServer/23–27` Pavement Projects FY23–FY27: `Project_Name`, `Fiscal_Year`, `Status`,
+  `Treatment`, `Start_Date`, `Completion_Date`, `Warranty_Date`, **`SPG_SUBDIVISION`**, and a
+  `Material_Description` already written in consumer prose.
+- AGOL org `services5.arcgis.com/89INMfS7IDCndmLF` —
+  `Capital_Improvement_Projects_(CIP)_View/FeatureServer/0` has `ProjectNumber`, `Name`,
+  `CurrentPhase`, `Budget`, `Manager`. `Start`/`End_` are **strings** ("November 2023").
+- Gap: no queryable subdivision/plat polygon layer. `Parcels_and_Addressing/MapServer/8`
+  ("Tract") returns no fields and no features — it is cartographic annotation, not data.
+
+**Buckeye** — best schema of the group. AGOL org `services1.arcgis.com/sixrqw8b8BHDvWq2`:
+`StreetOwnership_View/FeatureServer/0` has `Developmen`, **`Constructi` (real year built)**,
+`SurfaceOwn`, `StreetHier`, `PaserRatin`, `LastTreatm`, `Cost`, and a `Contractor` column —
+which is populated with `" "` (a single space) on every record sampled. The field exists and
+is unused. `Subdivisions/FeatureServer/0` is the plat layer Goodyear lacks.
+
+**Phoenix** — `https://maps.phoenix.gov/pub/rest/services/Public/STR_StreetCenterline/MapServer/0`.
+`JURISDICTION` domain covers neighbouring cities (`Phoenix, Maricopa County, ADOT, Avondale,
+Glendale, Peoria, Scottsdale, Tempe, Tolleson, …`), which makes it a **valley-wide fallback**
+for towns with no server of their own. `CREATE_DATE` is a bulk-load timestamp (everything
+sampled = 2020-03-12), not construction.
+
+**Avondale** — `https://maps.avondaleaz.gov/server/rest/services/Transportation/STREET_CL/MapServer/2`.
+Note **layer 2**, not 0 — layer 0 returns an empty field list and zero features, an easy false
+negative. `OWNERSHIP`, `OWNER_LT`/`OWNER_RT` (carries `GOODYEAR`, `LITCHFIELD PARK`, etc.),
+`ST_CLASS`, `PavementMain`.
+
+**No public ArcGIS REST root found** for Litchfield Park, Tolleson, Surprise, Peoria, or
+Glendale. Fall back to Phoenix's `JURISDICTION`-tagged centerline or to MCDOT.
+
+### Checked this round and rejected
+
+- **RIT layer 12, Public Land Ownership.** 1:100,000-scale SMA polygons. One 1,294-acre
+  "Private Land" polygon matched both the Lone Mountain and Goodyear pins — twenty miles
+  apart. Usable only as a coarse "this area is State Trust / BLM / tribal land" sentence,
+  never as the ownership of a road.
+- **RIT layer 15, Right-Of-Way Permits.** 29,528 points, dense and recent (2013–2026), but
+  **no date field** (the year is only parseable out of `PermitID`) and `ScopeOfWork` is
+  unstructured free text. It answers "who has been digging here lately", not "who built it".
+- **MAG TIP, spatially.** 467 geometry features against 8,266 phase rows, and 287 of 291
+  lines are `Completed = 0`. The phase table *does* hold real money — 2,907 completed pre-2020
+  rows, 2,903 of them with amounts — but only reachable via `TIPID LIKE 'MMA%'` (the county
+  prefix; `MAR` is the City of Maricopa in Pinal County) and never by geometry. `ObligationDate`
+  is populated on 0.4% of rows and `VersionStatus` is `"Approved"` on all 8,266, so neither is
+  a usable filter. The v1 deferral was right about the shapes and wrong about the table.
+- **ATIS pavement stack (layers 34/13/14/43), AADT (47/48/49), functional class, NHS,
+  carriageway.** All real and queryable — layer 34 even exposes a genuine 1993 overlay that
+  layer 3 hides. But they describe the road's *characteristics*, not its authorship.
+- **Empty or broken:** `Property/RightOfWayPermit` returns HTTP 200 with zero layers and a 404
+  on `/0`; `dot/rest/services/AssetIntegration` is `{"folders":[],"services":[]}`; the four
+  `Survey/*` services carry only geodetic control and land subsidence.
+
+---
+
+## 9. Test pins
+
+Each reaches a different path. The last two are derived from the data rather than eyeballed —
+picking coordinates by sight put an earlier "Deer Valley Rd" pin 206 m off the road, and in
+Peoria rather than the county.
+
+| Coordinate (lon, lat) | Expected path |
+|---|---|
+| `-112.528617, 33.767648` | Lone Mountain Rd — unincorporated, dirt; declared 2014-09-24, ROW by road easement. **Moved onto the centreline**: the original eyeballed coordinate sat 104 m off the road, which the proximity gate now correctly refuses to name |
+| `-112.4118, 33.4386` | Goodyear — layer 7 hits, layer 2 **empty**; "city maintains this" |
+| `-112.3756, 33.4602` | I-10 — ADOT inside Goodyear's limits; built 2011, TRACS H729601C; bridge built 1978/rebuilt 2011; $4.16M FFY2018 |
+| `-112.2749, 33.5988` | Sun City — declared 1982-12-10; two NBI structures nearby carrying *other* roads |
+| `-112.4448, 33.3939` | MC 85 — a road whose name genuinely ends in digits; acquired by ADOT resolution |
+| `-111.6672, 33.4662` | McDowell Rd — **spot** TIP project TT0408; the linear record for the same project is 401 m away on another street. Declared 1970 |
+| `-112.3177, 33.6894` | Williams Dr — county arterial, TIP project TT0248, declaration via *plat* name match |
+
+Outside Arizona, one pin per tier. `./scripts/probe.sh <name>` runs any of them.
+
+| Coordinate (lon, lat) | Name | Expected path |
+|---|---|---|
+| `-75.16558, 39.95851` | `philadelphia` | PennDOT `JURIS=1`: VINE ST, `YR_BUILT` 1959, `YR_RESURF` 2017 |
+| `-75.1652, 39.9526` | `phillylocal` | Same street, `JURIS=5` stretch — `YR_BUILT` is **0** and must not reach the record |
+| `-91.14597, 30.41927` | `batonrouge` | BALIS DR — name and owner, and deliberately **no year**: 1971 belongs to Perkins Rd |
+| `-91.14783, 30.41862` | `perkins` | PERKINS RD — the one 1971 row in that box, reached through the measure join |
+| `-95.3698, 29.7604` | `houston` | No profile: TIGER names Bagby St, NBI dates a 1959 bridge over Buffalo Bayou, card explains the gap |
+| `-71.0589, 42.3601` | `boston` | NHS ownership; also the TIGER 60 m empty-envelope regression |
+
+
+---
+
+## 10. The state tier — what the other 49 states actually publish
+
+Fourteen state DOTs probed on 2026-09-07. **All fourteen are keyless; not one needed a token.**
+Three findings shape the design.
+
+**They split into two structurally different shapes**, and one adapter cannot read both.
+
+| Shape | States | Form |
+|---|---|---|
+| `lrsEvents` | AZ, LA, VA | One attribute per layer, joined on route id + measure range. 3-5 queries per answer. |
+| `flatInventory` | PA, TX, NY, IA, OH, TN | One denormalised polyline carrying everything. TxDOT returns 133 fields in a single hit. |
+
+**Two code spaces genuinely standardise**, because both are what FHWA requires in a state's
+annual HPMS submission — Louisiana's own layers are stamped `DataSource: "2024 HPMS Submittal"`:
+
+- **HPMS ownership**: `1` State · `2` County · `3` Town/township · `4` Municipal · `26` Private ·
+  `31`/`32` Toll authority · `50`,`62` Tribal · `60`-`74` Federal. Seen across five unrelated
+  states. Louisiana emits `1,2,3,4,11,21,25,26,32,63,64,66,70,72,73,74,80`; the NHS emits `1,2,4`.
+- **FHWA functional class** `1`-`7`. Exactly `1..7` on Louisiana's layer 84. **New York is the
+  exception** and must not use the shared table — it publishes a two-digit extended scheme
+  (`"19-Urban Local"`).
+
+**Nothing else standardises.** Not field names, not value encoding (`4` vs `"04-Municipal or
+City Hwy Agency"` vs `"DOT-Arizona Department of Transportation"`), and not route id formats.
+**No service publishes coded-value domains** — ADOT layer 29, Iowa, TxDOT, Louisiana and PennDOT
+all return `domain: null`, and TxDOT says `ADMIN: NO DOMAIN` outright. The decode tables have to
+ship with the app; the agency will not tell you what a `4` means.
+
+### 10.1 Pennsylvania — the trap, and the field that actually works
+
+```
+https://gis.penndot.pa.gov/gis/rest/services/opendata/roadwaysegments/MapServer/0
+```
+
+`STREET_NAME, ST_RT_NO, SEG_NO, YR_BUILT, YR_RESURF, JURIS, MAINT_RESPON_IND, CUR_AADT`.
+113,827 segments. Live at central Philadelphia: `SIXTEENTH ST YR_BUILT 1916 YR_RESURF 2004`,
+`VINE ST 1959 / 2017`, `BROAD ST 1927 / 2016`.
+
+**`MAINT_RESPON_IND` is not HPMS and must not be read as it.** Distinct values
+`10,19,20,29,30,39,40,49,50,60,69,70,80` — close enough to HPMS-times-ten to look usable. Every
+segment in downtown Philadelphia reads `40`, **including I-676, the Vine Street Expressway, at
+64,768 AADT**. Decoded as HPMS `4` that says a state expressway is city-maintained. It is also
+populated only on `JURIS = 1` rows, so it is not an ownership field at all.
+
+**`JURIS` is the ownership field.** Distinct values are exactly `1,2,5,6`:
+
+| Code | Meaning | Segments |
+|---|---|---|
+| 1 | PennDOT | 101,354 |
+| 2 | Pennsylvania Turnpike Commission | 685 |
+| 5 | Local government | 11,737 |
+| 6 | Interstate bridge commission | 51 |
+
+**`YR_BUILT` is a state-system fact only.** `YR_BUILT>0` returns 101,006 — but
+`YR_BUILT>0 AND JURIS='5'` returns **0**. That is 99.7% of PennDOT-owned segments and none of
+the locally owned ones. The earlier reading of "89% of 113,827 including local streets" was
+wrong, and the UI must not imply local coverage.
+
+**Two null sentinels, both of which parse as valid values.** `YR_BUILT = 0` and `YR_RESURF = 0`
+on every `JURIS = 5` row — read naively that is "year 0", or 1970 once a date decoder touches
+it. And `TRAF_RT_NO = "000"` on any road with no signed route number, which would otherwise
+render as *Route 000*. Handled by `nullNumbers` and `nullStrings` in the profile.
+
+### 10.2 Louisiana — an LRS, and the join that has to be right
+
+```
+https://gis.dotd.la.gov/road/rest/services/Roads_and_Highways_OpenData/MapServer
+```
+
+115 layers. The ones used:
+
+| Layer | Name | Rows | Carries |
+|---|---|---|---|
+| 49 | Louisiana Roadways | **576,063** | `FullName`, `Ownership`, `RouteID`, measures |
+| 91 | Ownership | 162,871 | HPMS `Ownership` |
+| 69 | Last Construction | **3,642** | `YearLastConst` |
+| 70 | Last Improvement | — | `YearLastImprove` |
+| 84 | Functional System | — | `FunctionalSystem` 1-7 |
+
+Layer 49 is the reason Louisiana is worth having: it is a statewide centreline that **does reach
+residential streets**, so name and owner are answerable on ordinary local roads. Layer 3
+"Local Road Names" is **empty — 0 features. Do not wire it.**
+
+Layer 69's 3,642 rows against layer 91's 162,871 is the honest measure of date coverage: about
+2% of the network, and it is the state control-section network. Live on I-10 at Baton Rouge:
+`YearLastConst 1959`, `YearLastImprove 2000`, `Ownership 1`, `FunctionalSystem 3`, all on
+`RouteID 013-04-1-010`.
+
+**Layers 49 and 91 disagree, and 91 wins.** Balis Dr reads `Ownership 2` (county) on the route
+layer and `4` (municipal) on the dedicated HPMS event table. The catalog lists 91 first.
+
+**Two route-id namespaces in one service**: `013-04-1-010` for control sections and
+`033900412201591020` for local roads. Arizona space-pads to 32 characters. **Compare raw, never
+parse** — normalisation exists to join across services, which this app never does, and can only
+manufacture false joins.
+
+**The join is why `LRSJoin` exists.** In a 150 m box around Balis Dr the construction table
+returns exactly one row: `033903558402991001`, measures 1.653-2.26, year 1971. That route is
+**Perkins Rd**, which runs through the same box as three consecutive segments (1.930-1.999,
+1.999-2.072, 2.072-2.203). Take the first event in the envelope and Balis Dr is dated 1971.
+Filter on the pin's own route id and Balis Dr correctly gets no year at all.
+
+The same bug was already live in Arizona. `atis_2_i10` returns five improvement events for ramp
+`I 010127E` with `YearLastImprovement` of 2008, 2009 and 2011 across disjoint ranges, and
+`atis_24_i10` returns **thirteen TRACS numbers** for `I 010`. `ADOTStateRouteSource` matched on
+route id and then took `.first`. It now ranks by proximity, and its twelve tests are unchanged.
+
+### 10.3 Construction year: three states of fourteen
+
+| State | Field | Coverage |
+|---|---|---|
+| Arizona | `YearLastConstruction` | 5,553 / 5,638 (98.5%) |
+| Pennsylvania | `YR_BUILT` | 101,006 — state-owned only |
+| Louisiana | `YearLastConst` | 3,642 rows — control sections only |
+
+**Ohio's `LAST_CONST` is a trap.** 5,804 of 58,127 rows non-null (10%), and the non-null values
+are `-2209161600000` — epoch for 1900-01-01, a placeholder. Ohio's official server
+`gis.dot.state.ohio.gov/arcgis/rest/services` returns **404**. Texas `SURF_TREAT_YEAR` is last
+surface treatment, not construction; a weak lower bound at best.
+
+**Cost: zero of fourteen.** No state publishes construction cost on a road segment. What was
+true for Maricopa (§6) is true nationally.
+
+### 10.4 The portability trap, and why the client was already immune
+
+`distance` + `units` point-buffer queries return **zero features with HTTP 200** on Caltrans,
+WSDOT and FDOT, while working on TxDOT, PennDOT, Ohio and Iowa. `esriGeometryEnvelope` works on
+all of them.
+
+This is §4's Maricopa quirk again, in three more states. `ArcGISClient` builds only envelopes,
+so the app cannot express the broken form. **Never add a point-buffer query mode.**
+
+One related sharp edge: **`maxAllowableOffset` is measured in the units of the *output* spatial
+reference and silently does nothing without `outSR`.** A Harris County boundary comes back at
+369 KB without it and 8 KB with it — a 45x difference, no error either way.
+
+### 10.5 Bluntly unusable
+
+- **California.** `caltrans-gis.dot.ca.gov/.../All_Roads/FeatureServer/0` has ten fields and
+  every one is plumbing: `OBJECTID, RouteId, LRSFromDate, LRSToDate, CreatedUser, CreatedDate,
+  LastEditedUser, LastEditedDate, GlobalID, Shape__Length`. No ownership, no year, no class.
+  The largest DOT in the country and the thinnest endpoint probed.
+- **Florida.** Fragmented into ~70 single-attribute services. Assembling one road's story means
+  querying dozens.
+- **Washington.** `StateRoutes/0` is route geometry only.
+- **Tennessee.** 32 fields, no AADT, no year.
+
+---
+
+## 11. County GIS at national scale — auto-discovery does not work
+
+Twelve counties tested against the ArcGIS Online and Hub search APIs. **The correct authoritative
+county road layer was the top result for 1 of 12**, and the failures are confident rather than
+empty:
+
+| Query | Top result | Why it is wrong |
+|---|---|---|
+| Harris County TX | `Houston Road Centerline` | City, not county |
+| King County WA | `King and Queen County Road Centerlines` | Virginia |
+| Cook County IL | `Road Centerlines … Minnesota` | Minnesota |
+| Miami-Dade FL | `Edge of Pavement Centerline 2001` | Right org, 25 years stale |
+| Cabarrus County NC | `North Carolina Rail Road Centerline` | Owned by `cabarruscounty.us`, titled "Road Centerline" — **railroads** |
+| Sedgwick County KS | *(zero results)* | Population 525,000 |
+
+King County's actual centreline is named **`TRANS_NETWORK_LINE_394`**, which no keyword search
+reaches; its org exposes 1,173 services with machine-generated names. There is no authority
+signal to fall back on: `contentstatus:org_authoritative road centerline` returns 1,028 items
+nationally, for 3,143 counties, and `hub.arcgis.com/api/v3/sites` returns **404** — there is no
+enumerable registry of county Hub sites. `catalog.data.gov`'s CKAN API returns **404** on every
+path; there is currently no machine-readable national catalog.
+
+**And even on a hit, maintenance is undecodable.** Miami-Dade `MAINTCODE` distinct values are
+`CM, PC, PK, UR, U, AP, CC, CI, CO, MT, SW, IS` with `domain: None`. King County publishes
+`JURIS_L = 5`, an integer with no domain. NCDOT `OwnerType` is `66, 73, 72, 13, 50, …`. Three
+independent counties and a state DOT, three encodings, zero domains. This is §5.3's
+`aquisition_type` problem, nationwide and structural.
+
+Zero fields are common to all six county schemas compared. Cook County has **no maintenance
+field at all** on its street layer — it lives on a separate layer with a different name field.
+
+**Conclusion: curated per-county profiles are the only correct path. Do not build discovery.**
+The one reliable programmatic surface is a county's own DCAT feed
+(`<hub-domain>/api/feed/dcat-us/1.1.json`, complete and accurate) — but you must already know
+the Hub domain, and nothing enumerates those.
+
+Statewide aggregations exist in a minority of states and reduce ~3,143 integrations to ~50 where
+they do: **NC** `NCDOT_RoadCharacteristicsQtr` (1,201,628 rows), **TX** `TxDOT_Roadways`
+(574,990, though only 28,331 in Harris County against the City of Houston's 235,765), **ME**
+MaineDOT (100,799). Florida and Wisconsin publish no statewide road layer.
+
+---
+
+## 12. Rejected outright, with the numbers
+
+**OpenStreetMap / Overpass.** The tags that would answer the question are not populated.
+Measured with `out count` over whole-city bounding boxes:
+
+| Tag | Boston (11,493 drivable ways) | Maricopa (8,708) |
+|---|---|---|
+| `name` | 98.5% | 96.6% |
+| `surface` | 86.3% | 80.5% |
+| `start_date` | **2.8%** | **0.0%** |
+| `operator` | **0 ways** | **0 ways** |
+
+`operator` was present on literally zero ways in both metros. Overpass also allows 2 slots per
+IP on donated hardware and returned **HTTP 504 on 3 of 8 requests** during probing; the
+`overpass.kumi.systems` mirror timed out after 199 s on the same query. A shipped app polling it
+is not acceptable use. Dropped, not deferred — same as USAspending in §6.
+
+**FHWA ARNOLD and the full HPMS release.** `geo.dot.gov/server/rest/services` lists
+`ARNOLD_Inventory_HPMS`, `HPMS_Public_Release`, `HPMS_Measure` and `NonPublicHPMS`. Every one
+returns `{"error":{"code":499,"message":"Token Required"}}`. These are the two datasets that
+would actually solve national coverage, and they are unreachable from a keyless client. The one
+public ARNOLD service, `Arnold_NH_2020`, is New Hampshire only and carries no ownership.
+
+**Ohio, California, Florida, Washington, Tennessee** — see §10.3 and §10.5.
+
+---
+
+## 13. The coverage catalog
+
+`Sources/RoadCore/Resources/coverage.json` says which jurisdictions this build can read and how.
+It ships in the bundle and is refreshable from static hosting, so a state whose endpoint moves
+is fixable without an App Store release.
+
+**The boundary, stated plainly: the catalog can name, order, configure and disable sources. It
+cannot define one.** Adding a state on either generic adapter is a catalog edit. Adding a county
+at Maricopa's depth is a build, because that depth is judgement — concluding ownership from a
+layer's *silence* (§1.2), disambiguating coincident geometry 2 m apart (§3.1), gating a join on
+a name (§7.1), reading a project number out of free text (§3.2). Configuration should not try to
+express those, and `adapter: "bespoke"` is how a profile says so.
+
+What a profile *can* express: one spatial query per layer, an exact-key plus measure-overlap
+join, field-to-field mapping with code tables, three year encodings, null sentinels for numbers
+and strings, and layer ordering. That is precisely MCDOT's field-mapping half and none of its
+logic.
+
+### Rules that are not obvious
+
+- **Version skew is per entry, not per catalog.** Each entry carries `minSchema`; an app that
+  does not understand one skips *that entry* and loads the rest. Rejecting the whole file
+  because one new state uses a newer field would turn a single addition into a total outage
+  everywhere.
+- **Bundled wins on a tie or when newer.** A downloaded catalog with a lower `catalogVersion`
+  than the bundled one is ignored, so an app update is never undone by a stale file on disk.
+- **HTTPS only.** The catalog decides which hosts the app calls; an entry carrying a plaintext
+  URL is a redirect primitive, not a typo, and is dropped.
+- **`Provenance.isBundled` is not overloaded for this.** A catalog entry is configuration, not a
+  value — PennDOT's road data still came live from PennDOT. Catalog staleness is reported
+  separately through `Coverage.catalogCapturedOn`.
+- **Layer order encodes precedence.** Louisiana lists layer 91 before the route layer's own copy
+  of `Ownership` because the two disagree (§10.2), and `RoadRecord.merge` is first-writer-wins.
+- **Tiers run state, then county, then national**, for the same reason: a pin on I-10 sits
+  inside Goodyear's city limits, so ADOT must claim it before a county source infers a municipal
+  owner (§3).
+
+### Coverage levels
+
+| Level | Meaning | Example |
+|---|---|---|
+| `county` | Somebody did the §1-§2 reconnaissance | Maricopa County |
+| `state` | A state DOT publishes the road | Pennsylvania, Louisiana |
+| `national` | TIGER name, NHS ownership if on it, NBI if a structure is | Harris County, TX |
+
+The level is set by the pipeline factory, never by a source — only the factory can tell *no
+source is mapped here* from *a source is mapped and found nothing*, and that distinction is the
+entire content of the sentence the card shows.
