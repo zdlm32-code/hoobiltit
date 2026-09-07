@@ -6,6 +6,10 @@ import RoadCore
 struct ReportsList: View {
     let reports: [RoadReport]
     let onDelete: (UUID) -> Void
+    /// Which of these reached the shared map. Answered from local storage — the pool is never
+    /// queried, and no identity is involved.
+    var sharedIDs: Set<UUID> = []
+    var onWithdraw: (UUID) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
 
@@ -22,6 +26,15 @@ struct ReportsList: View {
                     List {
                         ForEach(reports) { report in
                             row(report)
+                                .swipeActions(edge: .leading) {
+                                    if sharedIDs.contains(report.id) {
+                                        Button("Unshare", systemImage: "person.2.slash") {
+                                            onWithdraw(report.id)
+                                        }
+                                        .tint(.orange)
+                                    }
+                                }
+                                .badge(sharedIDs.contains(report.id) ? "Shared" : nil)
                         }
                         .onDelete { offsets in
                             for index in offsets { onDelete(reports[index].id) }

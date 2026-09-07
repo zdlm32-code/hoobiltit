@@ -6,6 +6,13 @@ import RoadCore
 @Model
 public final class StoredReport {
     @Attribute(.unique) public var id: UUID
+    /// Whether this report was also published to the shared map. Local only — the pool is never
+    /// queried to answer it, and it is what "Remove from the shared map" is driven by.
+    ///
+    /// Defaulted deliberately: adding a non-optional property *with* a default is handled by
+    /// SwiftData's lightweight migration, which is why this needs no `MigrationPlan` in a project
+    /// that has never had one.
+    public var isShared: Bool = false
     public var createdAt: Date
     public var latitude: Double
     public var longitude: Double
@@ -19,8 +26,9 @@ public final class StoredReport {
     public var segmentIdentifier: String?
     public var countyRating: String?
 
-    public init(_ report: RoadReport) {
+    public init(_ report: RoadReport, isShared: Bool = false) {
         id = report.id
+        self.isShared = isShared
         createdAt = report.createdAt
         latitude = report.coordinate.latitude
         longitude = report.coordinate.longitude
@@ -73,6 +81,21 @@ public actor ReportStore {
     public func save(_ report: RoadReport) {
         context.insert(StoredReport(report))
         try? context.save()
+    }
+
+    /// Records that a report reached the shared map, or was withdrawn from it.
+    public func setShared(_ shared: Bool, id: UUID) {
+        let descriptor = FetchDescriptor<StoredReport>(predicate: #Predicate { $0.id == id })
+        guard let stored = try? context.fetch(descriptor).first else { return }
+        stored.isShared = shared
+        try? context.save()
+    }
+
+    /// Which reports are on the shared map, so the list can offer to withdraw them. Answered
+    /// locally — the pool is never queried, and no identity is involved.
+    public func sharedIDs() -> Set<UUID> {
+        let descriptor = FetchDescriptor<StoredReport>(predicate: #Predicate { $0.isShared })
+        return Set((try? context.fetch(descriptor))?.map(\.id) ?? [])
     }
 
     public func delete(id: UUID) {

@@ -6,12 +6,20 @@ struct ReportSheet: View {
     let coordinate: Coordinate
     /// The road as resolved at this spot; copied into the report rather than looked up again.
     let record: RoadRecord?
-    let onSave: (RoadReport) -> Void
+    /// `share` is the per-report choice, not a remembered preference.
+    let onSave: (RoadReport, _ share: Bool) -> Void
+    /// Whether this device can contribute at all. Reading the pool never depends on this — the
+    /// public database is readable without an iCloud account — so a signed-out user still sees
+    /// everyone else's reports and simply cannot add their own.
+    var canContribute: Bool = false
 
     @Environment(\.dismiss) private var dismiss
     @State private var rating: ConditionRating = .fair
     @State private var issue: RoadIssue = .pavement
     @State private var note = ""
+    /// Off every time. A remembered preference would make the first accidental "yes" permanent,
+    /// and the whole point of asking per report is that the answer is a choice each time.
+    @State private var share = false
 
     /// What the county says about this road, when it says anything. Most city streets have no
     /// published rating, and the sheet must not imply otherwise.
@@ -62,8 +70,29 @@ struct ReportSheet: View {
                     }
                 }
 
-                Section("Note") {
+                Section {
                     TextField("Optional", text: $note, axis: .vertical).lineLimit(2...5)
+                } header: {
+                    Text("Note")
+                } footer: {
+                    Text("Kept on this device. Your note is never part of a shared report.")
+                }
+
+                Section {
+                    Toggle("Add to the shared map", isOn: $share)
+                        .disabled(!canContribute)
+                } footer: {
+                    if canContribute {
+                        // Says exactly what is published, in the order it is published, so the
+                        // choice is informed rather than a shrug.
+                        Text("Shares your rating and \(issue.label.lowercased()), the road, and "
+                             + "roughly where \u{2014} rounded to about 100 metres, and dated to "
+                             + "the day. Your note and the exact spot stay on this device. "
+                             + "Shared reports are public and you can remove yours later.")
+                    } else {
+                        Text("Sharing needs an iCloud account. You can still file this report, "
+                             + "and you can still see everyone else's.")
+                    }
                 }
 
                 Section {
@@ -107,7 +136,7 @@ struct ReportSheet: View {
             jurisdiction: record?.jurisdiction?.value,
             segmentIdentifier: record?.segmentIdentifier?.value,
             countyRating: countyRating
-        ))
+        ), share && canContribute)
         dismiss()
     }
 }
