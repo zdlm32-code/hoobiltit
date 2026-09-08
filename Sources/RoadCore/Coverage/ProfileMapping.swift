@@ -80,6 +80,9 @@ public enum ProfileMapping {
         guard let field = mapping.ownership else { return nil }
         // Read before the numeric decode: this field holds "Bexar County", not a code, and
         // `CodeTables.code` would take the leading digits of a name and invent an owner.
+        if mapping.ownershipTable == .ohioJurisdiction {
+            return feature[field].text.flatMap { CodeTables.owner(ohio: $0) }
+        }
         if mapping.ownershipTable == .adotOwnership {
             guard let text = feature[field].text, !mapping.isNull(text) else { return nil }
             return CodeTables.owner(adot: text)
@@ -101,7 +104,7 @@ public enum ProfileMapping {
         case .penndotJurisdiction:  return CodeTables.owner(penndot: code)
         case .txdotAdmin:           return CodeTables.owner(txdot: code)
         case .fhwaFunctionalClass, .dallasRehabType, .namedAgency, .dallasMaintenance,
-             .adotOwnership, .ncdotImprovement, .none:
+             .adotOwnership, .ncdotImprovement, .ohioJurisdiction, .none:
             return nil
         }
     }
@@ -123,6 +126,8 @@ public enum ProfileMapping {
             kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(hpms: $0) }
         } else if rule.table == .penndotJurisdiction {
             kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(penndot: $0) }
+        } else if rule.table == .ohioJurisdiction {
+            kind = feature[rule.field].text.flatMap { CodeTables.owner(ohio: $0) }
         } else if rule.table == .txdotAdmin {
             kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(txdot: $0) }
         }
@@ -230,7 +235,8 @@ public enum ProfileMapping {
                              confidence: MatchConfidence,
                              now: Date = Date(),
                              to fragment: inout RoadFragment) {
-        if fragment.segmentName == nil, let name = text(feature, mapping.name, mapping) {
+        if fragment.segmentName == nil,
+           let name = joined(feature, mapping.nameParts, mapping) ?? text(feature, mapping.name, mapping) {
             fragment.segmentName = Attributed(name, provenance: provenance, confidence: confidence)
         }
         if fragment.routeDesignation == nil, let route = joined(feature, mapping.routeDesignation, mapping) {

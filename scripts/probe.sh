@@ -398,6 +398,30 @@ print("new:"+",".join(new) if new else "ok")')
   echo
 }
 
+# ODOT's JURISDICTI is one undocumented letter per level of government, derived by cross-tabbing
+# against ROUTE_TYPE. If a new letter appears it decodes to no owner at all, silently.
+check_ohio_jurisdiction() {
+  echo "=== ODOT jurisdiction letters (ENDPOINTS.md 19)"
+  local out
+  out=$(curl -s -m 90 "https://services1.arcgis.com/1AlElnGrgBM62OSj/arcgis/rest/services/Road_Inventory/FeatureServer/0/query?where=1%3D1&groupByFieldsForStatistics=JURISDICTI&outStatistics=%5B%7B%22statisticType%22%3A%22count%22%2C%22onStatisticField%22%3A%22FID%22%2C%22outStatisticFieldName%22%3A%22n%22%7D%5D&f=json" \
+    | python3 -c '
+import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print("err"); raise SystemExit
+if "error" in d: print("err"); raise SystemExit
+known={"S","C","M","T","F","P"}
+seen={(f["attributes"]["JURISDICTI"] or "").strip() for f in d.get("features",[])}
+new=sorted(v for v in seen if v and v not in known)
+print("new:"+",".join(new) if new else "ok")')
+  echo "  JURISDICTI values -> ${out:-?}"
+  case "$out" in
+    ok)  echo "  OK: every letter is in the shipped table (P deliberately yields no owner)." ;;
+    err) echo "  INCONCLUSIVE: the request failed; re-run before drawing any conclusion." ;;
+    *)   echo "  CHECK: a new level of government appeared -- update CodeTables.ohioJurisdiction." ;;
+  esac
+  echo
+}
+
 # Feature count for a query URL, or the string "err" if the request did not come back.
 count() {
   curl -s -m 25 --retry 3 --retry-delay 1 --retry-all-errors "$1" | python3 -c '
@@ -428,4 +452,5 @@ else
   check_rgv
   check_metro_sentinels
   check_ncdot_domains
+  check_ohio_jurisdiction
 fi

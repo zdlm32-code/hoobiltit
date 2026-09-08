@@ -455,6 +455,34 @@ public enum CodeTables {
         return ncdotImprovement[code.uppercased()]
     }
 
+    // MARK: - ODOT jurisdiction
+
+    /// ODOT `JURISDICTI`, one letter over 402,947 statewide segments.
+    ///
+    /// Undocumented — the layer publishes no domain — and derived the same way TxDOT's `ADMIN`
+    /// was, by cross-tabbing against `ROUTE_TYPE`, which is self-describing. The partition is
+    /// exact: `C` is 100% `CR`, `M` 100% `MR`, `T` 100% `TR`, `S` covers `SR`/`US`/`IR`/`RA`,
+    /// and `F` covers `FR` and `NP`.
+    ///
+    /// `P` (42,156) is deliberately absent. Its rows carry **blank street names** and are 99.9%
+    /// functional class 7, which reads as private local roads — but "reads as" is not evidence,
+    /// and those rows have no name to contribute either way.
+    public static let ohioJurisdiction: [String: RoadOwner] = [
+        "S": .state(agency: "Ohio Department of Transportation"),
+        "C": .county(agency: "County engineer"),
+        "M": .municipality(name: "Municipal government", fullName: "Municipal government"),
+        // Ohio still has townships as a road authority, which HPMS code 3 recognises and most
+        // states do not.
+        "T": .municipality(name: "Township trustees", fullName: "Township trustees"),
+        "F": .federal(agency: "Federal agency"),
+    ]
+
+    public static func owner(ohio value: String?) -> RoadOwner? {
+        guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+        else { return nil }
+        return ohioJurisdiction[raw.uppercased()]
+    }
+
     // MARK: - Lookup
 
     /// Reads a code that may arrive as `4`, `"4"`, `"04"` or `"04-Municipal or City Hwy

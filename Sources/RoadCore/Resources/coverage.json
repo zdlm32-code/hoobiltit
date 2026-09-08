@@ -319,6 +319,47 @@
       },
       "_comment": "1201628 segments, the richest state inventory found: StreetName on 1166779 (97%), SrfcType on 918124, ImprvDate on 473065 and OwnerName on 297234 naming 1049 bodies from Charlotte down. NCDOT is also the ONLY agency probed anywhere that publishes coded-value domains, so ImprvType, OwnerType, FuncClass and SrfcType are decoded from the agency's own words rather than inferred - see CodeTables.ncdotImprovement. Ownership needs two rules because the level and the body live in OwnerType and OwnerName while NCDOT's own maintenance is declared in a third field, RouteMaintCode = System, on 607062 segments naming no owner at all; reading a blank as 'state' would be a guess where the agency published an answer. ImprvDate is clean - 1872 distinct dates, the largest 4.0% - so unlike San Antonio, Laredo and Arlington it needs no sentinel filter.",
       "dateCaveat": "NCDOT records the last improvement on about 470,000 of its 1.2 million road segments, and what kind of work it was."
+    },
+    "39": {
+      "id": "oh.odot",
+      "displayName": "ODOT road inventory",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services1.arcgis.com/1AlElnGrgBM62OSj/arcgis/rest/services/Road_Inventory/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "STREET_PRE",
+        "STREET_NAM",
+        "STREET_SUF",
+        "JURISDICTI",
+        "FUNCTION_C",
+        "ADT_TOTAL_",
+        "LANES_NBR",
+        "ROUTE_TYPE"
+      ],
+      "fields": {
+        "nameParts": [
+          "STREET_PRE",
+          "STREET_NAM",
+          "STREET_SUF"
+        ],
+        "ownership": "JURISDICTI",
+        "ownershipTable": "ohioJurisdiction",
+        "functionalClass": "FUNCTION_C",
+        "functionalClassTable": "fhwaFunctionalClass",
+        "aadt": "ADT_TOTAL_",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          " ",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "402947 segments with a jurisdiction on every one and a real street name on 379684 (94%). This is NOT the Ohio layer rejected in section 10.3: that one was 58127 rows whose LAST_CONST was the 1900-01-01 placeholder, on a server that now 404s. This one publishes no construction date at all - PERP_YEAR is the dataset's own vintage, 2022 on 100% of rows, and RESURFACE_ covers 9228 segments across only 2020-2022 - so nothing dated is mapped rather than dressing up a publication year as a build year. The name is stored in three fields and needs joining. SURFACE_TY is single undocumented letters (G on 64%) and is deliberately not read.",
+      "dateCaveat": "Ohio publishes who is responsible for each road but no construction or resurfacing history."
     }
   },
   "counties": {

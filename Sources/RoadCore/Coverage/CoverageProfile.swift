@@ -59,6 +59,8 @@ public enum CodeTableReference: String, Sendable, Codable {
     case adotOwnership
     /// NCDOT `ImprvType`, the one vocabulary an agency actually documents.
     case ncdotImprovement
+    /// ODOT `JURISDICTI`, a single letter per level of government.
+    case ohioJurisdiction
 }
 
 /// How a year is stored. Verified encodings: PennDOT writes a plain `1916`, ADOT a compact
@@ -102,6 +104,10 @@ public struct FieldMapping: Sendable, Codable, Hashable {
     /// Ordered; the first that yields a value wins. King County and Cook County split names
     /// into left- and right-of-centreline variants, so more than one candidate is normal.
     public var name: [String]?
+    /// Joined with a space to form the name, for a layer that stores it in pieces. Ohio holds
+    /// `S` + `MAIN` + `ST` in three fields; taking the first that yields gives "MAIN".
+    /// Preferred over `name` when both are set.
+    public var nameParts: [String]?
     /// Joined with a space to form a route designation, e.g. PennDOT's
     /// `TRAF_RT_NO_PREFIX` + `TRAF_RT_NO`.
     public var routeDesignation: [String]?

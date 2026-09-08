@@ -1199,8 +1199,10 @@ name, owner, class and traffic, and no dates.
 
 **Ohio's `LAST_CONST` is a trap.** 5,804 of 58,127 rows non-null (10%), and the non-null values
 are `-2209161600000` — epoch for 1900-01-01, a placeholder. Ohio's official server
-`gis.dot.state.ohio.gov/arcgis/rest/services` returns **404**. Texas `SURF_TREAT_YEAR` is last
-surface treatment, not construction; a weak lower bound at best.
+`gis.dot.state.ohio.gov/arcgis/rest/services` returns **404**. *(A different and much better
+Ohio service was found later and is shipped — see §19. It carries no construction field at all,
+which is exactly why it is safe.)* Texas `SURF_TREAT_YEAR` is last surface treatment, not
+construction; a weak lower bound at best.
 
 **Cost: one of fourteen.** Thirteen of the fourteen publish no construction cost on a road
 segment, as Maricopa does not (§6). **Texas is the exception** and a substantial one:
@@ -1707,4 +1709,52 @@ state-by-state is not a stopgap.
 
 Also probed and rejected this round: **Florida** (`RCI_Layers` exposes a name and almost nothing
 else through its MapServer), **Washington** (`HpmsSegments`, 3,176 rows), **California** (a
-`CHhighway` folder with one service), **New York, Ohio, Michigan** (servers unreachable).
+`CHhighway` folder with one service), and **New York and Michigan** (servers unreachable).
+Ohio's server is unreachable too, but its ArcGIS Online copy is not — see §19.
+
+---
+
+## 19. Ohio — the same state, a different service, and no dates to get wrong
+
+§10.3 rejected Ohio, correctly, on the evidence then available: 58,127 rows whose `LAST_CONST`
+was the 1900-01-01 placeholder, on a host that 404s. ODOT's ArcGIS Online copy is a different
+dataset entirely:
+
+```
+https://services1.arcgis.com/1AlElnGrgBM62OSj/arcgis/rest/services/Road_Inventory/FeatureServer/0
+```
+
+**402,947 segments**, a jurisdiction on every one, and a real street name on 379,684 (94%). Also
+functional class, lanes, and `ADT_TOTAL_` on 124,285.
+
+**It publishes no construction date, and that is the safe part.** `PERP_YEAR` is `2022` on
+**100%** of rows — the dataset's own vintage, not the road's — and `RESURFACE_` covers 9,228
+segments across only 2020-2022. Neither is mapped, and the profile does not even *request*
+`PERP_YEAR`, so there is no plausible-looking year sitting in the response to be mistaken for a
+build date later.
+
+### The name is in three fields
+
+`STREET_PRE` + `STREET_NAM` + `STREET_SUF` — `S`, `MAIN`, `ST`. Every other profile takes the
+first field that yields a value, which here gives **"MAIN"**. `FieldMapping.nameParts` joins them.
+
+### `JURISDICTI` is one letter, and undocumented
+
+Derived the way TxDOT's `ADMIN` was, by cross-tabbing against `ROUTE_TYPE`, which is
+self-describing. The partition is exact:
+
+| Letter | `ROUTE_TYPE` | Segments | Owner |
+|---|---|---|---|
+| `M` | 100% `MR` | 139,995 | Municipal |
+| `T` | 100% `TR` | 111,882 | **Township trustees** |
+| `S` | `SR`, `US`, `IR`, `RA`, `NR` | 58,220 | ODOT |
+| `C` | 100% `CR` | 50,087 | County engineer |
+| `F` | `FR`, `NP`, `DD` | 607 | Federal |
+| `P` | `MR`, `TR`, `BK` | 42,156 | **unmapped** |
+
+Ohio still has **townships** as a road authority — 111,882 segments — which most states do not,
+and which HPMS code 3 exists for. `P` is left unmapped: its rows carry blank street names and are
+99.9% functional class 7, which *reads as* private, and reading-as is not evidence. Those rows
+have no name to contribute either way.
+
+`SURFACE_TY` is single undocumented letters (`G` on 64%) and is deliberately not read.
