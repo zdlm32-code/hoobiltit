@@ -1073,6 +1073,60 @@
       },
       "_comment": "29728 segments on layer 428, not 0. Jurisdiction and Maintenance both name the body, and Maintenance is the finer of the two - it separates DIA, Denver Parks and Recreation and Fairmount Cemetery from the city proper, and marks 1054 segments PRIVATE where Jurisdiction marks 2112. Read in that order for that reason. YR_LSTWK is the year the city last worked the segment: 24458 of 29728 (82%) across a smooth spread from the 1990s with no dominant value, so no sentinel filter is needed. It is maintenance, never construction - CCD_Treatment names the treatment - so workKindDefault is maintained. FROMNAME and TONAME are not mapped as cross streets: they run to whole sentences listing ramps and signals.",
       "dateCaveat": "Denver records when it last worked on a street, not when the street was built."
+    },
+    "2148000": {
+      "id": "ky.louisville.pavement",
+      "displayName": "Louisville Metro pavement condition",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services1.arcgis.com/79kfd2K6fskCAkyg/arcgis/rest/services/Metro_Road_Paving_Condition_2025_PCI_View_layer/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "ROADNAME",
+        "OWNER_NAME",
+        "MUNI_NAME",
+        "PCI",
+        "Material",
+        "CORE_CLASS",
+        "FiscalYear",
+        "ProjDesc",
+        "LOJIC_FROM",
+        "LOJIC_TO"
+      ],
+      "fields": {
+        "name": [
+          "ROADNAME"
+        ],
+        "ownership": "OWNER_NAME",
+        "ownershipTable": "namedAgency",
+        "ownerNames": {
+          "METRO": "Louisville Metro",
+          "PRIVATE": "Private",
+          "STATE": "Kentucky Transportation Cabinet",
+          "OUT OF JEFFERSON": ""
+        },
+        "functionalClass": "CORE_CLASS",
+        "surface": "Material",
+        "conditionIndex": "PCI",
+        "crossStreetFrom": "LOJIC_FROM",
+        "crossStreetTo": "LOJIC_TO",
+        "workYear": "FiscalYear",
+        "workType": "ProjDesc",
+        "workKindDefault": "maintained",
+        "yearEncoding": "yearNumber",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          " ",
+          "UNNAMED",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "24327 segments. Found while searching for INDIANA: the scan returned it because the org is unlabelled, and its owner names - JEFFERSONTOWN, SHIVELY, MIDDLETOWN, 'OUT OF JEFFERSON' - are Jefferson County KENTUCKY suburbs. It returns zero features at Indianapolis and 171 at downtown Louisville. The third cross-state false positive of the batch, and the reason every candidate is now checked at an in-state pin. OWNER_NAME is METRO on 24174 rows plus 111 PRIVATE and a handful of independent suburbs; 'OUT OF JEFFERSON' declines rather than naming a body it does not know. FiscalYear is null on 23173 of 24327, so almost nothing carries a date and ProfileMapping drops an undated work entry.",
+      "dateCaveat": "Louisville records pavement condition for every street but a paving year for only about a thousand of them."
     }
   }
 }

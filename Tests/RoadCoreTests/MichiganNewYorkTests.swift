@@ -92,3 +92,50 @@ struct MichiganNewYorkTests {
         #expect(profile.layer == 11)
     }
 }
+
+@Suite("Louisville — found while looking for Indiana")
+struct LouisvilleTests {
+    let palRoad = RoadQuery(latitude: 38.236860, longitude: -85.776099)
+    let oxmoor = RoadQuery(latitude: 38.242267, longitude: -85.615699)
+
+    private func source(_ fixture: String) -> FlatInventorySource {
+        FlatInventorySource(profile: CoverageCatalog.bundled.profile(forPlace: "2148000")!,
+                            client: ArcGISClient(transport: FixtureTransport([
+                                "Metro_Road_Paving_Condition_2025_PCI_View_layer/FeatureServer/0":
+                                    .fixture(fixture)])),
+                            now: { fixedNow })!
+    }
+
+    @Test("A Louisville street is owned by Louisville Metro")
+    func metroStreet() async throws {
+        let fragment = try await source("louisville_metro").fetch(palRoad)
+        #expect(fragment.segmentName?.value == "PAL RD")
+        #expect(fragment.owner?.value == .municipality(name: "Louisville Metro",
+                                                       fullName: "Louisville Metro"))
+    }
+
+    @Test("A private street is private")
+    func privateStreet() async throws {
+        let fragment = try await source("louisville_private").fetch(oxmoor)
+        #expect(fragment.owner?.value == .privateOwner)
+    }
+
+    /// Why every candidate is now checked at an in-state pin.
+    @Test("This layer was returned by a search for Indiana, and is in Kentucky")
+    func crossStateFalsePositive() throws {
+        // Its owner names are Jefferson County suburbs — Jeffersontown, Shively, Middletown —
+        // and it returns zero features at Indianapolis against 171 in downtown Louisville. It
+        // is keyed to Louisville's place GEOID, so a pin in Indiana never reaches it.
+        let catalog = CoverageCatalog.bundled
+        #expect(catalog.profile(forPlace: "2148000")?.id == "ky.louisville.pavement")
+        #expect(catalog.profile(forState: "18") == nil, "Indiana ships nothing")
+    }
+
+    @Test("An owner the city cannot name declines rather than guessing")
+    func outOfJefferson() throws {
+        let profile = try #require(CoverageCatalog.bundled.profile(forPlace: "2148000"))
+        // "OUT OF JEFFERSON" says only that the road left the county.
+        #expect(profile.fields?.ownerNames?["OUT OF JEFFERSON"] == "")
+        #expect(profile.fields?.ownerNames?["METRO"] == "Louisville Metro")
+    }
+}

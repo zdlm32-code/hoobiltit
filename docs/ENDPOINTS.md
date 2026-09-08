@@ -1914,3 +1914,41 @@ has warned about since §10 — values run to 19 — and the FHWA 1–7 table wo
 
 **Georgia and Illinois are why every hit now gets its extent checked before it is believed.** Both
 would have shipped one state's roads under another state's name.
+
+---
+
+## 23. Batch two — six states, none of which publishes ownership
+
+New Jersey, Washington, Tennessee, Indiana, Maryland and Missouri. **Not one publishes a
+statewide layer naming who is responsible for a road**, which is the bar. One city came out of it,
+and it was not in any of the six.
+
+| State | What it does publish |
+|---|---|
+| New Jersey | `NJDOT_Roadway_Network`, 106,232 segments — a straight-line-diagram label and LRS validity dates (`YEAR_ACTIVE`, `YEAR_RETIRED`), no owner. The one layer carrying `JURISDICTN` returns nothing in Newark. |
+| Tennessee | `Pavement_Roughness`, 154,237 segments with a county and a collection year. No owner, no name. |
+| Indiana | **29 `LRSE_*` event services** — AADT, access control, functional class, lanes, median, shoulders, speed, surface — and **not one for ownership**. |
+| Maryland | iMap's twenty folders are thematic and include no transportation or roads service at all. |
+| Missouri | `MO_MoDOT_Roads_Arcs` carries a name and a designation. No ownership. |
+| Washington | Nothing beyond the 3,176-row `HpmsSegments` already rejected in §18. |
+
+### Louisville, found while searching for Indiana
+
+```
+https://services1.arcgis.com/79kfd2K6fskCAkyg/arcgis/rest/services/Metro_Road_Paving_Condition_2025_PCI_View_layer/FeatureServer/0
+```
+
+The Indiana scan returned this because its organisation is unlabelled. Its owner names give it
+away — `JEFFERSONTOWN`, `SHIVELY`, `MIDDLETOWN`, `OUT OF JEFFERSON` are Jefferson County
+**Kentucky** suburbs — and it returns **zero features at Indianapolis against 171 in downtown
+Louisville**.
+
+That is the **third cross-state false positive in two batches**, after Georgia's Chattanooga
+extract and Illinois' Nevada layer. Every candidate is now queried at a pin known to be inside
+its claimed state before anything is written.
+
+Taken on its merits it is a good city source: 24,327 streets with `OWNER_NAME` (`METRO` on
+24,174, plus 111 private and a handful of independent suburbs), condition, class and cross
+streets. `OUT OF JEFFERSON` maps to an empty rename so it declines rather than naming a body it
+does not know. `FiscalYear` is null on 23,173 of 24,327, so almost nothing carries a paving date
+and the undated-work rule drops the rest.

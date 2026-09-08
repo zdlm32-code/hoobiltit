@@ -6,7 +6,7 @@ part, because each one records what was actually checked so it is not re-probed 
 
 Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number is given.
 
-**23 profiles shipped · 10 states · 2 counties · 11 cities**
+**24 profiles shipped · 10 states · 2 counties · 12 cities**
 
 ---
 
@@ -33,7 +33,12 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | California | Caltrans' `All_Roads` is 723,692 segments carrying only a route id; the Roads & Highways API adds postmiles, not ownership | 22 |
 | Illinois | The org a search returns holds no Illinois road layer — four in-state pins returned nothing | 22 |
 | Georgia | The layer named `HPMS` is a Chattanooga tri-state regional extract: **zero features in Atlanta** | 22 |
-| Washington | `HpmsSegments` is 3,176 rows | 18 |
+| Washington | `HpmsSegments` is 3,176 rows; no statewide roadway service found | 18, 23 |
+| New Jersey | `NJDOT_Roadway_Network` (106,232) carries a route label and LRS validity dates, no owner; the one layer with `JURISDICTN` returns nothing in Newark | 23 |
+| Tennessee | `Pavement_Roughness` (154,237) carries a county and a survey year, no owner or name | 23 |
+| Indiana | 29 `LRSE_*` event services and **not one for ownership** | 23 |
+| Maryland | iMap publishes no transportation or roads service at all | 23 |
+| Missouri | `MO_MoDOT_Roads_Arcs` carries a name and designation, no ownership | 23 |
 | California | Caltrans server has a `CHhighway` folder with one service | 18 |
 | Iowa, Tennessee | Flat inventories, not yet mapped | 10 |
 | **National (FHWA)** | `HPMS_Public_Release` and `ARNOLD_Inventory_HPMS` return **`499 Token Required`** — settles that there is no national ownership layer without a key | 18 |
@@ -67,6 +72,7 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | ✅ | **Arlington, TX** | Pavement inventory | **Installed *and* replaced dates**; `Built`/`Reconstructed` are null decoys | 16 |
 | ✅ | **Laredo, TX** | Pavement condition | A real `YEAR_BUILT` on ~5,200 streets; 1980 placeholder on 50.9%, filtered | 16 |
 | ✅ | **Denver, CO** | Pavement treatments | `YR_LSTWK` on 82%, no sentinel; maintenance names the airport, parks, a cemetery | 20 |
+| ✅ | **Louisville, KY** | Metro pavement condition | 24,327 streets: owner incl. 111 private, condition, class, cross streets. Paving year on ~1,150 only | 23 |
 | ✅ | **Edinburg, TX** | Capital projects | **Contractor, actual cost, completion date** on 139 projects | 15 |
 | ✅ | **Pharr, TX** | Street inventory | Owner incl. 697 private, pavement rating, 2015–18 repaving | 15 |
 | ✅ | **Irving, TX** | Road centreline | Owner incl. 820 private, DFW airport slivers. No dates | 17 |
