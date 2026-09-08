@@ -6,7 +6,7 @@ part, because each one records what was actually checked so it is not re-probed 
 
 Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number is given.
 
-**21 profiles shipped · 8 states · 2 counties · 11 cities**
+**23 profiles shipped · 10 states · 2 counties · 11 cities**
 
 ---
 
@@ -20,6 +20,8 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | ✅ | **Massachusetts** | MassDOT road inventory | 409,586 segments, 18 documented owners incl. private and **120,329 unaccepted**. Second agency publishing domains | 20 |
 | ✅ | **Ohio** | ODOT road inventory | 402,947 segments, jurisdiction on all, names on 94%, **townships** as an authority. No dates | 19 |
 | ✅ | **Pennsylvania** | PennDOT roadway segments | Name, owner, `YR_BUILT` and `YR_RESURF` on state-owned roads | 10.1 |
+| ✅ | **New York** | NYSDOT maintenance jurisdiction | 394,175 segments, names on 90%, ownership named down to the borough. Third agency publishing domains. No dates | 22 |
+| ✅ | **Michigan** | MDOT road centreline | 709,036 segments — the largest network shipped. HPMS ownership, class, traffic. No dates | 22 |
 | ✅ | **Virginia** | VDOT route master | 196,896 routes; ownership from route *type*, because VDOT maintains the secondary system in every locality but two. No dates | 21 |
 | ✅ | **Louisiana** | LA DOTD LRS | Name, HPMS owner, construction and improvement years on control sections | 10.2 |
 
@@ -27,11 +29,12 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 
 | State | Why not | § |
 |---|---|---|
-| Florida | `RCI_Layers` MapServer exposes a name and almost nothing else | 18 |
+| Florida | `RCI_Layers` exposes a name and little else; `State_Roads_TDA` is 2,198 features with no attributes | 18, 22 |
+| California | Caltrans' `All_Roads` is 723,692 segments carrying only a route id; the Roads & Highways API adds postmiles, not ownership | 22 |
+| Illinois | The org a search returns holds no Illinois road layer — four in-state pins returned nothing | 22 |
+| Georgia | The layer named `HPMS` is a Chattanooga tri-state regional extract: **zero features in Atlanta** | 22 |
 | Washington | `HpmsSegments` is 3,176 rows | 18 |
 | California | Caltrans server has a `CHhighway` folder with one service | 18 |
-| New York | Server unreachable; two-digit extended functional class would need its own table | 10, 18 |
-| Michigan | Server unreachable | 18 |
 | Iowa, Tennessee | Flat inventories, not yet mapped | 10 |
 | **National (FHWA)** | `HPMS_Public_Release` and `ARNOLD_Inventory_HPMS` return **`499 Token Required`** — settles that there is no national ownership layer without a key | 18 |
 

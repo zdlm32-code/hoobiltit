@@ -1860,3 +1860,57 @@ This needed **no new Swift**. Two `ownershipRules`: the first maps every VDOT ro
 `SC-682E (Accomack County)` on a secondary route — so it is not read at all. Named streets come
 from the joined street parts; a secondary route with no street name falls through to TIGER, which
 gives a real one (*Anns Cove Rd*). No dates are published.
+
+---
+
+## 22. Batch one — the six largest remaining states
+
+California, Florida, New York, Illinois, Georgia and Michigan, worked with
+`scripts/statescan.py`. Two shipped. The four rejections are as useful as the wins, and two of
+them were **near misses that looked like hits**.
+
+### Michigan — the largest network yet
+
+```
+https://services2.arcgis.com/67lKNkQ2TO1I3lhR/arcgis/rest/services/MDOTRHCenterline2025_Districts/FeatureServer/0
+```
+
+**709,036 segments.** `Ownership` is the plain HPMS code space — 1 state (62,038), 2 county
+(282,098), 4 municipal (236,976) — so the table shipped for Louisiana reads it unchanged, and the
+127,663 rows carrying none claim nothing. The name is in four fields (`FEDIRP`, `FENAME`,
+`FETYPE`, `FEDIRS`). `NFC` is FHWA, and its `0` on 116,126 rows falls outside the published 1–7
+and yields no class rather than a wrong one. No construction date: `AADTYear` dates the count.
+
+### New York — the third agency that documents itself
+
+```
+https://gis.dot.ny.gov/hostingny/rest/services/Geocortex/HDSV/MapServer/11
+```
+
+The server this repo recorded as unreachable answers on a different path. **Layer 11,
+"Maintenance Jurisdiction", is 394,175 segments** — layers 1–4 are Federal Aid Eligible subsets
+of 16,677 to 54,221 each and are the wrong choice.
+
+NYSDOT publishes **fourteen coded-value domains**, after NCDOT (§18) and MassDOT (§20).
+`OWNING_JURIS` is the HPMS code space under New York's own labels — `01 NYSDOT`, `03 Town`,
+`31 NYS Thruway`, `26 Private` — so the shipped table reads it, and `98`/`99` "to be
+investigated" fall outside it and claim nothing.
+
+`OWNED_BY_MUNI_NAME` names the body, and attaching it is safe because of a **total correlation**:
+it is null on *all* 76,742 NYSDOT rows and present on *all* 109,379 city rows, so a state highway
+can never be renamed after a borough. A Bronx street reads **"Bronx"**.
+
+`FUNC_CLASS` is deliberately not mapped. New York uses the two-digit extended scheme this document
+has warned about since §10 — values run to 19 — and the FHWA 1–7 table would decode them wrongly.
+
+### The four rejections
+
+| State | What was found |
+|---|---|
+| **Georgia** | The layer named `HPMS` carries `OWNERSHIP` *and* `YEAR_LAST_IMPROVEMENT` on 171,572 segments and looked like the best find of the batch. Its extent is lon −86.8 to −84.0, and it returns **zero features in Atlanta**: it is a Chattanooga tri-state regional extract, not Georgia. |
+| **Illinois** | The org a search returns holds a layer named `HPMS_state_roads_NV` whose extent is **Nevada**. Four in-state Illinois pins returned nothing. |
+| **California** | Caltrans' `CHhighway/All_Roads` is 723,692 segments carrying **only a route id** and LRS dates — no name, no owner. `RH/RestAPI` adds postmiles and odometers, not attributes. |
+| **Florida** | `RCI_Layers` exposes a name and little else through its MapServer; `State_Roads_TDA` is 2,198 features with no relevant fields at all. |
+
+**Georgia and Illinois are why every hit now gets its extent checked before it is believed.** Both
+would have shipped one state's roads under another state's name.

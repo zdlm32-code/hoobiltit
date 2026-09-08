@@ -467,6 +467,106 @@
       },
       "_comment": "196896 routes. Virginia is arranged unlike any other state: VDOT maintains the secondary system in every locality except Arlington and Henrico, so RTE_JURIS_PROPER_NM names the LOCALITY a route sits in, not its owner, and reading it as ownership would hand 64076 VDOT-maintained secondary roads to the counties they run through. RTE_TYPE_NM is the ownership signal, and the arrangement proves itself: Arlington has 676 Street Routes to 7 Secondary, Henrico 6420 to 4, while VDOT-maintained Fairfax has 9422 Secondary to 5841 Street. So rule one claims every VDOT route type and declines Street Route; rule two then names the locality for what is left, and owner(named:) reads 'Fairfax County' as a county and 'City of Virginia Beach' as a municipality. No dates are published. RTE_COMMON_NM is a label rather than a name - 'Patrick Henry DR (NP - Arlington County)' on a street, 'SC-682E (Accomack County)' on a secondary route - so it is not read at all. The street parts are joined for named streets, and a secondary route with no street name falls through to TIGER, which gives a real one.",
       "dateCaveat": "Virginia publishes who is responsible for each route but no construction or resurfacing dates."
+    },
+    "26": {
+      "id": "mi.mdot",
+      "displayName": "MDOT road centreline",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services2.arcgis.com/67lKNkQ2TO1I3lhR/arcgis/rest/services/MDOTRHCenterline2025_Districts/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "FEDIRP",
+        "FENAME",
+        "FETYPE",
+        "FEDIRS",
+        "Ownership",
+        "NFC",
+        "AADT",
+        "MIREThroughLanes"
+      ],
+      "fields": {
+        "nameParts": [
+          "FEDIRP",
+          "FENAME",
+          "FETYPE",
+          "FEDIRS"
+        ],
+        "ownership": "Ownership",
+        "ownershipTable": "hpmsOwnership",
+        "functionalClass": "NFC",
+        "functionalClassTable": "fhwaFunctionalClass",
+        "aadt": "AADT",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          " ",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "709036 segments, the largest state network shipped. Ownership is plain HPMS - 1 state (62038), 2 county (282098), 4 municipal (236976), plus 40 and 80 - so it needs no new table; 127663 rows carry none and claim no owner. NFC is the FHWA scheme and its 0 (116126 rows) is outside the published 1-7, so those yield no class rather than a wrong one. The name is in four fields and needs joining. No construction or resurfacing date is published: AADTYear dates the traffic count, not the road. Verified by spatial query at Detroit before shipping, because the search that found it also returned a layer named HPMS_state_roads_NV whose extent is Nevada.",
+      "dateCaveat": "Michigan publishes who owns each road but no construction or resurfacing dates."
+    },
+    "36": {
+      "id": "ny.nysdot",
+      "displayName": "NYSDOT maintenance jurisdiction",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://gis.dot.ny.gov/hostingny/rest/services/Geocortex/HDSV/MapServer",
+      "layer": 11,
+      "outFields": [
+        "SEGMENT_NAME",
+        "OWNING_JURIS",
+        "OWNED_BY_MUNI_NAME",
+        "SURFACE_TYPE",
+        "AADT",
+        "NUM_LANES",
+        "PAVEMENT_WIDTH",
+        "COUNTY_NAME_LONG"
+      ],
+      "fields": {
+        "name": [
+          "SEGMENT_NAME"
+        ],
+        "ownershipRules": [
+          {
+            "field": "OWNING_JURIS",
+            "table": "hpmsOwnership",
+            "nameField": "OWNED_BY_MUNI_NAME"
+          }
+        ],
+        "surface": "SURFACE_TYPE",
+        "surfaceNames": {
+          "90": "Same as base",
+          "91": "Natural",
+          "92": "Gravel",
+          "93": "Road mix or macadam",
+          "94": "Asphalt concrete",
+          "95": "Chip seal",
+          "96": "Slurry seal",
+          "97": "Microsurfacing",
+          "98": "Paver-placed surface treatment",
+          "99": "Portland cement concrete",
+          "100": "Portland cement concrete",
+          "101": "Brick or block"
+        },
+        "widthFeet": "PAVEMENT_WIDTH",
+        "aadt": "AADT",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          " ",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "394175 segments on layer 11, 'Maintenance Jurisdiction' - not the Federal Aid layers 1-4, which cover 16677 to 54221 each. SEGMENT_NAME is on 355159 (90%). NYSDOT is the THIRD agency found publishing coded-value domains, after NCDOT and MassDOT: fourteen of them here. OWNING_JURIS is the HPMS code space with New York's own labels (01 NYSDOT, 03 Town, 31 NYS Thruway, 26 Private) so the shipped hpmsOwnership table reads it, and 98/99 'to be investigated' fall outside it and claim nothing. OWNED_BY_MUNI_NAME names the body and is safe to attach: it is null on ALL 76742 NYSDOT rows and present on ALL 109379 city rows, so a state road can never be renamed after a municipality. FUNC_CLASS is deliberately NOT mapped - New York uses the two-digit extended scheme this repo has warned about since section 10, values running to 19, and the FHWA 1-7 table would decode them wrongly. No construction dates are published.",
+      "dateCaveat": "New York publishes who maintains each road but no construction or resurfacing dates."
     }
   },
   "counties": {
