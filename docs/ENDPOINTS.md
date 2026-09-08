@@ -2081,3 +2081,82 @@ Two states failed on the same shape this batch, and Kentucky nearly did in §24:
 Mississippi, Kansas and Idaho publish no statewide roadway service. The Kansas search returned a
 `Street_Centerlines` layer that answers nothing in Wichita, and the Idaho search returned the
 Chattanooga extract for the fourth time.
+
+## 27. Batch six — Georgia rescued, Vermont's towns, and the extract that keeps coming back
+
+### Georgia, which this document rejected once
+
+§22 rejected Georgia on a layer named `HPMS` that returned **zero features in Atlanta**. That
+rejection was right about the layer and wrong about the state. The real inventory is
+`GA_RoadInventory__Rural__SR__USBR__GABR__ECG_/FeatureServer/0` — **872,056 segments** — and it
+was found by a search aimed at *Maine*.
+
+It was then verified the other way round, which is the check §25 added after four searches
+returned other states: 504 features at Atlanta, 522 at Savannah, **zero at Augusta *Maine*** and
+zero at Albany, New York.
+
+`Ownership` is the plain HPMS space, and Georgia is the first state that lets the mapping be
+checked rather than assumed. It publishes its own `STATE_ROUTE` flag, and the two agree exactly:
+
+| `Ownership` | n | `STATE_ROUTE=1` |
+|---|---|---|
+| 1 state | 114,425 | 114,424 |
+| 2 county | 412,725 | 3 |
+| 4 municipal | 264,595 | 1 |
+| 25 other local | 45,720 | 0 |
+| **0** | **34,591** | **24,795** |
+
+Code `0` is not a sixth class. It is outside the HPMS space, and 72% of the rows carrying it are
+state routes — it is a state road whose owner field was never filled. `CodeTables.owner(hpms:)`
+returns nil for it, so those 34,591 segments report no owner rather than a wrong one.
+
+`street_nm` is populated on 161,717 rows: 90% of the state routes, about 5% of the county roads.
+It is mapped, and where it is empty the name falls through to TIGER — which is why a county road
+in Appling County still gets named while GDOT still supplies the owner.
+
+### Vermont, where the county owns nothing
+
+`VT_Road_Centerline_Feb2023`, **layer 92, not 0** — 77,263 centrelines. The ownership shape is
+unlike any other state shipped:
+
+| `Ownership` | n | `RTNAME` says |
+|---|---|---|
+| 3 town | 44,068 | `TH-` on 98%, `LT-` (legal trail) on 2% |
+| 26 private | 16,408 | nothing at all on 16,406 |
+| 1 state | 10,702 | `VT-`, `US-`, `I-` on 100% |
+| 4 municipal | 5,205 | `TH-` on 100% |
+| 2 county | **0** | — |
+
+The town is the largest road authority in the state, more than a fifth of every road in Vermont
+is private, and **county is used zero times**: Vermont's counties are judicial districts and keep
+no roads. `RTNAME` is self-describing and confirms the whole partition without a single guess.
+
+Vermont is also the **fourth** service found anywhere that publishes its own domains, after
+NCDOT, MassDOT and NYSDOT — `SURFACETYPE` and `AOTCLASS` both carry coded values. The surface is
+read from that domain rather than derived. Two values are nulled: surface code `9` is the
+domain's own "Unknown" on 12,394 rows, and `RTNAME` reads `-` on 16,731 rows, which without
+nulling would name every unnamed private road in Vermont "-".
+
+### The Chattanooga extract, identified at last
+
+The 171,572-feature layer named `HPMS` has now been returned by searches for Georgia (§22),
+Idaho (§26) and Hawaii. Its extent, converted out of Web Mercator, is **−86.84…−84.01 by
+33.81…36.19** — a tri-state box around Chattanooga. It answers 762 features there and zero in
+Atlanta, Honolulu, Denver or anywhere else.
+
+It carries `OWNERSHIP` and `YEAR_LAST_IMPROVEMENT`, which is exactly why it keeps looking like a
+win. Any future candidate matching 171,572 features is this layer.
+
+### Rejected, with what was actually checked
+
+| State | Checked | Result |
+|---|---|---|
+| Hawaii | `HPMS` (171,572), `HPMSys` (47,797) | Both are the Chattanooga extract; zero features in Honolulu |
+| Maine | 199 services verified at Augusta and Portland | Every hit is an NTAD national layer or another state's inventory |
+| West Virginia | `WV_Pavement_2020` (26,772) | A survey year, no ownership field |
+| North Dakota | 122 services | The only ownership-shaped hit is the National Highway Planning Network, retitled `Planar Geology` |
+| Wyoming | 109 services | Census All Roads (198,183) and BLM mixed roads answer in-state; neither names an owner |
+| Alaska | 206 services | `REF_Pavement_Dash` (387,953) carries `Maint_Dist_Name` — a maintenance district, not an owner |
+
+The search-then-verify sweep used here checks every candidate against two in-state pins before
+reporting it. That is what caught Hawaii, and it is what should have caught Georgia in §22.

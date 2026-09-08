@@ -6,7 +6,7 @@ part, because each one records what was actually checked so it is not re-probed 
 
 Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number is given.
 
-**28 profiles shipped · 13 states · 2 counties · 13 cities**
+**30 profiles shipped · 15 states · 2 counties · 13 cities**
 
 ---
 
@@ -27,6 +27,8 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | ✅ | **Michigan** | MDOT road centreline | 709,036 segments — the largest network shipped. HPMS ownership, class, traffic. No dates | 22 |
 | ✅ | **Virginia** | VDOT route master | 196,896 routes; ownership from route *type*, because VDOT maintains the secondary system in every locality but two. No dates | 21 |
 | ✅ | **Louisiana** | LA DOTD LRS | Name, HPMS owner, construction and improvement years on control sections | 10.2 |
+| ✅ | **Georgia** | GDOT road inventory | 872,056 segments — HPMS ownership confirmed exactly by GDOT's own `STATE_ROUTE` flag; names on 161,717. No dates | 27 |
+| ✅ | **Vermont** | VTrans road centreline | 77,263 centrelines where the **town** is the largest road authority (44,068) and **16,408 are private**. Counties own none. No dates | 27 |
 
 ### Probed, not shipped
 
@@ -35,7 +37,6 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | Florida | `RCI_Layers` exposes a name and little else; `State_Roads_TDA` is 2,198 features with no attributes | 18, 22 |
 | California | Caltrans' `All_Roads` is 723,692 segments carrying only a route id; the Roads & Highways API adds postmiles, not ownership | 22 |
 | Illinois | The org a search returns holds no Illinois road layer — four in-state pins returned nothing | 22 |
-| Georgia | The layer named `HPMS` is a Chattanooga tri-state regional extract: **zero features in Atlanta** | 22 |
 | Washington | `HpmsSegments` is 3,176 rows; no statewide roadway service found | 18, 23 |
 | New Jersey | `NJDOT_Roadway_Network` (106,232) carries a route label and LRS validity dates, no owner; the one layer with `JURISDICTN` returns nothing in Newark | 23 |
 | Tennessee | `Pavement_Roughness` (154,237) carries a county and a survey year, no owner or name | 23 |
@@ -51,6 +52,12 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | Oregon | No statewide service; Portland's metro centreline is shipped instead | 25 |
 | Colorado | `PavementCondition` is 437,195 segments carrying a route id, surface and survey year — no name, no owner | 24 |
 | Alabama | `HPMS_Year2017_F_System_Data` is 185,150 segments carrying only a record year and route id | 24 |
+| Hawaii | Both candidates are the **Chattanooga extract** — 762 features there, zero in Honolulu | 27 |
+| Maine | Every candidate is a national NTAD layer or another state's; nothing answers in Augusta with an owner | 27 |
+| North Dakota | Nothing statewide; the one ownership-shaped hit is the National Highway Planning Network under a geology title | 27 |
+| Wyoming | Census All Roads (198,183) and BLM's mixed roads answer in-state but neither names an owner | 27 |
+| Alaska | Only national layers answer; `REF_Pavement_Dash` (387,953) carries a maintenance **district**, not an owner | 27 |
+| West Virginia | `WV_Pavement_2020` is 26,772 rows with a survey year and no ownership field | 27 |
 | **National (FHWA)** | `HPMS_Public_Release` and `ARNOLD_Inventory_HPMS` return **`499 Token Required`** — settles that there is no national ownership layer without a key | 18 |
 
 ---

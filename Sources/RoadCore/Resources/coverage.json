@@ -1,5 +1,5 @@
 {
-  "_comment": "Which jurisdictions this build can read, and how. Every service URL here was queried live on 2026-09-07; do not add an entry that has not been. This catalog can name, order, configure and disable sources — it cannot define one, so adding a state on either generic adapter needs no app release, while a county needing Maricopa-depth judgement does.",
+  "_comment": "Which jurisdictions this build can read, and how. Every service URL here was queried live on 2026-09-07; do not add an entry that has not been. This catalog can name, order, configure and disable sources \u2014 it cannot define one, so adding a state on either generic adapter needs no app release, while a county needing Maricopa-depth judgement does.",
   "schemaVersion": 1,
   "catalogVersion": 1,
   "capturedOn": "2026-09-07",
@@ -174,7 +174,7 @@
         ]
       },
       "dateCaveat": "PennDOT publishes a construction year only for roads it maintains itself.",
-      "_comment": "JURIS is the ownership field: 1 PennDOT (101354), 2 Turnpike Commission (685), 5 local (11737), 6 interstate bridge commission (51). MAINT_RESPON_IND looks like HPMS-times-ten and is not — every downtown Philadelphia segment reads 40, including I-676 at 64768 AADT, and it is populated only on JURIS=1 rows. YR_BUILT is 0 on every JURIS=5 segment, hence nullNumbers."
+      "_comment": "JURIS is the ownership field: 1 PennDOT (101354), 2 Turnpike Commission (685), 5 local (11737), 6 interstate bridge commission (51). MAINT_RESPON_IND looks like HPMS-times-ten and is not \u2014 every downtown Philadelphia segment reads 40, including I-676 at 64768 AADT, and it is populated only on JURIS=1 rows. YR_BUILT is 0 on every JURIS=5 segment, hence nullNumbers."
     },
     "22": {
       "id": "la.dotd",
@@ -244,7 +244,7 @@
         }
       ],
       "dateCaveat": "Louisiana publishes a construction year for its own control sections, not for local streets.",
-      "_comment": "Layer 49 'Louisiana Roadways' is 576063 features statewide and does include residential streets, so name and owner reach local roads here. Layer 91 is listed before layer 49's own Ownership copy on purpose: the two disagree — Balis Dr reads Ownership 2 on 49 and 4 on 91 — and 91 is the dedicated HPMS event table with measures. Layer 3 'Local Road Names' is empty; do not wire it. RouteID runs two namespaces in one service: '013-04-1-010' for control sections and '033900412201591020' for local roads. Compare raw, never parse."
+      "_comment": "Layer 49 'Louisiana Roadways' is 576063 features statewide and does include residential streets, so name and owner reach local roads here. Layer 91 is listed before layer 49's own Ownership copy on purpose: the two disagree \u2014 Balis Dr reads Ownership 2 on 49 and 4 on 91 \u2014 and 91 is the dedicated HPMS event table with measures. Layer 3 'Local Road Names' is empty; do not wire it. RouteID runs two namespaces in one service: '013-04-1-010' for control sections and '033900412201591020' for local roads. Compare raw, never parse."
     },
     "37": {
       "id": "nc.ncdot",
@@ -695,6 +695,94 @@
       },
       "_comment": "New Mexico's HPMS submission as an event table: 2898383 rows, which is not 2.9 million roads but the same roads split at every attribute change. Verified as New Mexico rather than national - 9274 features around Albuquerque and zero at Austin, Chicago and San Francisco. Ownership is the plain HPMS space: 1 state (1527767), 4 municipal (361599), 2 county (145528), 26 private (33223), 50 tribal (9469), plus 11, 62, 64 and 80; 804586 rows carry none and claim nothing. Carries no name field at all, so TIGER names the road. The segmentation is the cost: a 150 m envelope returns 1840 features and about 350 KB even with outFields narrowed to three, which is the largest per-lookup payload of any profile shipped and the reason nothing beyond ownership and traffic is requested.",
       "dateCaveat": "New Mexico publishes who owns each road but no construction or resurfacing dates."
+    },
+    "13": {
+      "id": "ga.gdot",
+      "displayName": "Georgia road inventory",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services1.arcgis.com/9lDFdeC4JIBgML6L/arcgis/rest/services/GA_RoadInventory__Rural__SR__USBR__GABR__ECG_/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "street_nm",
+        "Ownership",
+        "FunctionalClass",
+        "SurfaceType",
+        "ThroughLanes",
+        "AADT",
+        "LaneWidth",
+        "SPEED_LIMIT",
+        "STATE_ROUTE"
+      ],
+      "fields": {
+        "name": [
+          "street_nm"
+        ],
+        "ownership": "Ownership",
+        "ownershipTable": "hpmsOwnership",
+        "functionalClass": "FunctionalClass",
+        "functionalClassTable": "fhwaFunctionalClass",
+        "aadt": "AADT",
+        "widthFeet": "LaneWidth",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          " ",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "872056 segments. Georgia was REJECTED in section 22 on a layer literally named HPMS that returned zero features in Atlanta - a Chattanooga tri-state regional extract. This is the real statewide inventory, found by a search aimed at MAINE, and verified the other way round: 504 features at Atlanta, 522 at Savannah, zero at Augusta Maine and Albany New York. Ownership is the plain HPMS space and its own STATE_ROUTE flag confirms it exactly - of 114425 rows coded 1 state, 114424 carry STATE_ROUTE=1, and county (412725), municipal (264595) and other-local (45720) are STATE_ROUTE=0 on all but four rows between them. Code 0 on 34591 rows is not a sixth class but unset data: 24795 of them are STATE_ROUTE=1, so it is a state road whose owner field was never filled. It is outside the HPMS space and claims nothing. FunctionalClass is one of the few fields anywhere with a published domain. street_nm is populated on 161717 rows - 90% of the state routes but only 5% of county roads - so it names the road where GDOT has a name and falls through to TIGER where it does not. No construction dates.",
+      "dateCaveat": "Georgia publishes who owns each road but no construction or resurfacing dates."
+    },
+    "50": {
+      "id": "vt.vtrans",
+      "displayName": "Vermont road centreline",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services1.arcgis.com/NXmBVyW5TaiCXqFs/arcgis/rest/services/VT_Road_Centerline_Feb2023/FeatureServer",
+      "layer": 92,
+      "outFields": [
+        "PRIMARYNAME",
+        "Ownership",
+        "SURFACETYPE",
+        "FUNCL",
+        "RTNAME",
+        "AOTCLASS"
+      ],
+      "fields": {
+        "name": [
+          "PRIMARYNAME",
+          "RTNAME"
+        ],
+        "ownership": "Ownership",
+        "ownershipTable": "hpmsOwnership",
+        "functionalClass": "FUNCL",
+        "functionalClassTable": "fhwaFunctionalClass",
+        "surface": "SURFACETYPE",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          " ",
+          "-",
+          "9",
+          "UNKNOWN",
+          "N/A"
+        ],
+        "surfaceNames": {
+          "1": "Paved",
+          "2": "Gravel",
+          "3": "Soil or graded and drained earth",
+          "5": "Unimproved or primitive",
+          "6": "Impassable or untravelled"
+        }
+      },
+      "_comment": "77263 centrelines on layer 92, not 0. Ownership is the plain HPMS space and its shape is unlike any other state shipped: 3 town (44068) is the largest class, which almost nowhere else uses, and 26 PRIVATE is second at 16408 - more than a fifth of every road in Vermont - against 10702 state and 5205 municipal. Code 2 county is used ZERO times: Vermont's counties are judicial districts and keep no roads. RTNAME is self-describing and confirms the whole partition exactly: ownership 1 is VT/US/I signed routes (100%), 3 and 4 are both TH- town-highway numbers (98% and 100%), and 26 has no route number at all on 16406 of 16408 rows. Vermont also publishes domains for SURFACETYPE and AOTCLASS, which almost no service does - SURFACETYPE is decoded from its published domain, and its code 9 Unknown (12394 rows) is nulled rather than shown. RTNAME's '-' placeholder on 16731 rows is nulled too so it can never be mistaken for a road's name. No construction dates.",
+      "dateCaveat": "Vermont publishes who owns each road but no construction or resurfacing dates."
     }
   },
   "counties": {
@@ -780,7 +868,7 @@
           "Unknown"
         ]
       },
-      "_comment": "38564 supersegments. rehab_year is populated on 27588 across 95 distinct years with NO dominant value — the largest is 2024 at 8.4% — so unlike San Antonio's InstallDate it needs no sentinel filtering. rehab_type is a 21-value vocabulary decoded by CodeTables.workKind(pavementTreatment:), shared with Denver; 'None' on 11007 rows means no recorded work and yields no entry. maint_resp is 'City' on 38471 of 38564, so namedAgency reads it as a municipality; it is the level, not the body, which is the same amount PennDOT's JURIS=5 claims. The City of Dallas spans five counties, which is why this is keyed on place GEOID and not county FIPS.",
+      "_comment": "38564 supersegments. rehab_year is populated on 27588 across 95 distinct years with NO dominant value \u2014 the largest is 2024 at 8.4% \u2014 so unlike San Antonio's InstallDate it needs no sentinel filtering. rehab_type is a 21-value vocabulary decoded by CodeTables.workKind(pavementTreatment:), shared with Denver; 'None' on 11007 rows means no recorded work and yields no entry. maint_resp is 'City' on 38471 of 38564, so namedAgency reads it as a municipality; it is the level, not the body, which is the same amount PennDOT's JURIS=5 claims. The City of Dallas spans five counties, which is why this is keyed on place GEOID and not county FIPS.",
       "dateCaveat": "Dallas records when a street was last rebuilt or resurfaced, not when it was first built."
     },
     "4865000": {
@@ -813,7 +901,7 @@
           "Unknown"
         ]
       },
-      "_comment": "98986 segments. InstallDate is populated on ALL of them and 96% of it is placeholder: 2000-01-01 on 49782 rows (50.3%) and 1980-01-01 on 45272 (45.7%), leaving 3932 real dates. Both epoch values are in nullNumbers; without them the app would invent a construction year for every street in the city. What is genuinely populated is Owner, 43 values naming the body — San Antonio, Bexar County, TxDOT, Private on 11017 segments, Ft Sam Houston, Lackland AFB — decoded by CodeTables.owner(named:). Surface_Type is 'TBD' on 42576 rows, hence nullStrings.",
+      "_comment": "98986 segments. InstallDate is populated on ALL of them and 96% of it is placeholder: 2000-01-01 on 49782 rows (50.3%) and 1980-01-01 on 45272 (45.7%), leaving 3932 real dates. Both epoch values are in nullNumbers; without them the app would invent a construction year for every street in the city. What is genuinely populated is Owner, 43 values naming the body \u2014 San Antonio, Bexar County, TxDOT, Private on 11017 segments, Ft Sam Houston, Lackland AFB \u2014 decoded by CodeTables.owner(named:). Surface_Type is 'TBD' on 42576 rows, hence nullStrings.",
       "dateCaveat": "San Antonio dates only about 3,900 of its 99,000 street segments; the rest carry a placeholder the app discards rather than shows."
     },
     "4857200": {
