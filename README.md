@@ -249,76 +249,45 @@ it is not visible — it is there when the screen wakes, and in the Dynamic Isla
 phone is unlocked and this app is not frontmost. Updates are skipped when the rendered text has
 not changed, so the 250 m re-resolve cadence costs it nothing on a long road.
 
-## Rating roads
+## What the app does not do
 
-Identify a road, then **⋯ → Rate this road**: a condition, an issue, an optional note, pinned
-where the road was resolved and marked on the map tinted by rating. **⋯ → Your reports** lists
-them with a CSV export.
+It records nothing about you. There is no account, no history, no profile, and no server of ours
+for any of it to go to. It once let you rate roads, and briefly let you pool those ratings on a
+shared map; both were removed, and the first launch after that change deletes anything a previous
+version stored.
 
-Two choices do the work here. The condition scale is **the county's own five values** —
-Very Poor through Very Good, the same `EstimatedOcr` the app already displays — so your reading
-sits beside theirs and the sheet can say *the county rates this Very Good; you rated it 2 steps
-worse*. Where the county publishes nothing, which is most city streets, it says so rather than
-inventing a comparison. And each issue carries **the county's own maintenance category**
-(Pavement Preservation, Drainage, Concrete, Guardrail, Intersection, Dust Mitigation, Bridge,
-Cattle Guard), read from the MIP layers rather than invented, so an export is filed the way
-MCDOT files its own work.
+The CSV escaping from that feature survived it, in `CSVWriter`. Carrying its tests across turned
+up a bug the original had shipped with: it tested for newlines over `Character`s, and Swift treats
+CRLF as a **single** `Character` — so a value containing a Windows line ending matched neither
+`"\n"` nor `"\r"` and went out unquoted, splitting the row and shifting every column after it.
+The file still opens, which is why nobody noticed. It now tests unicode scalars.
 
-A report is a **snapshot**, not a live lookup: the road identity is copied in at save time.
-Re-resolving later could quietly change which road a report is about and would make the list
-useless offline. It also stores MCDOT's `SegmentID`, so reports on one stretch group by a
-stable identifier rather than by name matching.
+## Sharing
 
-CSV quoting has its own tests. One comma in a note shifts every column after it and nothing
-complains, so the escaping is a pure function rather than interpolation at the call site.
+Everything the app finds is shareable, and nothing about you is recorded to share.
 
-## Sharing, and the shared map
-
-**Share a road** from the full report's toolbar: a rendered card and a text fallback. Neither
-carries a coordinate, and that is not incidental. Every field on a `RoadRecord` carries a
-`Provenance` whose URL is the exact ArcGIS query — geometry parameter and all — so the pin is
-recoverable from it, and `fetchedAt` says when somebody was standing there. `RoadRecord` is
-therefore deliberately left non-`Codable`; `Coverage` carries a comment saying so, because making
-it `Codable` is a one-word change that looks like a tidy-up and would silently remove the
-guarantee.
-
-**The shared map** pools road ratings through CloudKit's public database — Apple-hosted, so there
-is no server, no key and no login; the identity is the iCloud account already on the phone.
-
-What is published is deliberately small:
-
-| Published | Never published |
+| From | What you get |
 |---|---|
-| Rating and issue, both from the county's own vocabularies | **Your note** — the only free text in the app |
-| Road name, segment id, jurisdiction, maintaining agency | The exact coordinate, and the cross streets |
-| A location rounded to **~100 m** | The time of day |
-| The **date**, no time | Any name, account or device identifier |
+| The full report's toolbar | A rendered card, or the whole report as a text file |
+| The records request | The drafted letter, straight to Mail |
+| The drive log | The roads you drove, as a CSV |
 
-Two decisions worth the space. **The rounding is coarser than the lookup cache's**, deliberately:
-`CacheKey` rounds to 11 m for *correctness* — coarser would let one key cover two roads — where
-the cost is a wrong answer. Here the cost is a disclosure, and 11 m is house-level. 100 m keeps
-the marker on the right road while leaving "which house" unanswerable. **And the timestamp is
-rounded too**, because 100 m plus a millisecond time is a movement trace.
+**A shared artefact carries no coordinate**, and that is enforced by tests rather than by care.
+Every field on a `RoadRecord` carries a `Provenance` whose URL is the exact ArcGIS query —
+geometry parameter included — so the pin is recoverable from it and `fetchedAt` says when
+somebody was standing there. `RoadRecord` is therefore deliberately left non-`Codable`, and
+`Coverage` carries a comment explaining why: adding the conformance is a one-word change that
+looks like a tidy-up and would silently remove the guarantee.
 
-Sharing is **off on every report**. No remembered preference: the point of asking per report is
-that the answer is a choice each time.
+The drive-log export is road names, not positions. It is an ordered trace of where somebody
+drove, which is useful to look at yourself and is a movement record the moment it is one tap from
+a group chat.
 
-Moderation is mostly solved by construction. Two closed vocabularies and no prose means there is
-nothing objectionable a stranger can publish. What remains is a flag on each marker, a threshold
-at which it stops being drawn, and — because there is no server — the whole thing is designed so
-a report can be withdrawn by its author, whom CloudKit's `_creator` role identifies without the
-app ever handling an identity.
+The one deliberate exception is the **public-records request**, which cites the coordinate to six
+decimal places because the agency needs it to identify the segment — and unlike a card handed to
+a group chat, that letter is addressed to a named public office. The share sheet says so.
 
-Reads never require an iCloud account: the public database is readable signed out, so gating
-reads on the account check — the mistake that shows a signed-out user an empty map — is
-specifically avoided. Only contributing needs an account.
-
-Everything privacy-critical is pure and tested on macOS with no network and no account: the
-redaction, the rounding, the vocabulary round-trip, and the rule that a value published by a
-future version is *dropped rather than crashed on*, which is what stops a later release breaking
-this one's map.
-
-## Design
+## Design## Design
 
 - **`RoadSource`** — one swappable provider. Each contributes only the fields it knows, and
   receives what earlier sources concluded, so a project source can tell "a project on this

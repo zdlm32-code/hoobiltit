@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy — hoobiltit</title>
-<meta name="description" content="What hoobiltit collects, what it publishes to the shared map, and what never leaves your device.">
+<meta name="description" content="What hoobiltit collects — nothing — and what the app does with your location.">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
 <link rel="apple-touch-icon" href="/assets/icon-180.png">
 <link rel="stylesheet" href="/assets/site.css?v=20260907c">
@@ -35,10 +35,10 @@
     <p><strong>Last updated 7 September 2026.</strong></p>
 
     <p>The hoobiltit <em>app</em> has no account, no login and no analytics. There is no
-      advertising identifier, no third-party SDK and no crash reporter. The app has one optional
-      feature that publishes anything at all — the shared map — and this page is mostly about
-      that. This <em>website</em> is a separate matter: it counts page views, and
-      <a href="#website">This website</a> below says exactly how.</p>
+      advertising identifier, no third-party SDK and no crash reporter. It has no server of ours
+      to talk to, records nothing about you, and publishes nothing anywhere. This page says what
+      that means in practice, and covers the analytics on this website, which is a separate
+      thing.</p>
 
     <h2>Looking up a road</h2>
     <p>When you drop a pin or drive, the app queries public county, state and federal map
@@ -46,87 +46,31 @@
       log it. Those agencies receive the coordinates of the query, as any map service must;
       their own privacy practices are their own.</p>
 
-    <h2>Reports you keep to yourself</h2>
-    <p>Rating a road stores the report on your device: the exact coordinate, the exact time,
-      your rating, the issue, your note, and the road as it was identified. None of that leaves
-      your device unless you choose to share it, and you can export or delete it at any time.</p>
+    <h2>What the app records about you</h2>
+    <p>Nothing. hoobiltit keeps no reports, no history and no profile of you. Earlier versions
+      let you rate roads and, briefly, share those ratings on a map; both were removed, and the
+      first launch after that change deletes anything a previous version had stored on your
+      device.</p>
 
-    <h2>The shared map</h2>
-    <p>Each report has a <em>Add to the shared map</em> switch. It is <strong>off every
-      time</strong> — there is no remembered preference, and a report already filed is never
-      published afterwards.</p>
+    <p>The app does keep a short-lived cache of road lookups so it does not re-ask the same
+      question repeatedly. It lives on your device, it expires, and it holds public map data —
+      not you.</p>
 
-    <p>When you turn it on, exactly this is published:</p>
-    <ul>
-      <li>your condition rating, one of the county's five values</li>
-      <li>the issue category, one of the county's own maintenance categories</li>
-      <li>the county's published rating for that road, where one exists</li>
-      <li>the road name, its segment identifier, the jurisdiction and the maintaining agency —
-        all of which are public records already</li>
-      <li>a location <strong>rounded to about 100 metres</strong></li>
-      <li>the <strong>date</strong>, with no time of day</li>
-    </ul>
+    <h2>Sharing</h2>
+    <p>You can share a road as a card, as a full report, as a drafted records request, or export
+      the roads from a drive. Sharing happens only when you tap share, and it goes wherever you
+      send it — we are not involved and receive no copy.</p>
 
-    <p>And this is never published:</p>
-    <ul>
-      <li><strong>your note</strong> — the only free text in the app, and it stays on your
-        device</li>
-      <li>the exact coordinate, or the cross streets, which would sharpen it again</li>
-      <li>the time of day</li>
-      <li>your name, email, Apple ID, or any device identifier</li>
-    </ul>
-
-    <p>The rounding is deliberate and it is the protection. At about 100 metres a suburban lot
-      frontage sits inside one grid square, so a report cannot say which house it was filed
-      outside — while the marker still lands on the right road. That distance is inside the
-      app's own idea of "the road you meant", which is 150 metres.</p>
-
-    <p>Shared reports are <strong>public</strong>. Anyone with the app can see them, including
-      people who are not signed in to iCloud. They are kept indefinitely, because a road's
-      condition over time is the point.</p>
-
-    <p>Two honest limits. Apple's servers stamp each record with the time it was received, and
-      we cannot suppress that — the day-only date is what the app shows, and the location
-      rounding is what actually protects you. And rounding is not anonymity: on a rural road,
-      one report in a 100 metre square may still point at one household. That is why the note
-      and the cross streets are not published, and it is why the switch is off by default.</p>
+    <p>Cards, reports and the drive-log export deliberately carry <strong>no
+      coordinates</strong>. The one exception is the public-records request, which cites the
+      exact location because the agency you are writing to needs it to identify the road; that
+      letter goes only where you send it.</p>
 
     <h2>Who processes it</h2>
-    <p>The shared map is Apple's CloudKit, in this app's public database. We run no server of
-      our own and hold no copy. Apple's handling is governed by
-      <a href="https://www.apple.com/legal/privacy/">Apple's privacy policy</a>.</p>
-
-    <h2>Removing a shared report</h2>
-    <p>Open <em>Your reports</em>, swipe the report and choose <em>Remove from the shared
-      map</em>. It is deleted from the pool. One limitation worth stating plainly: this works
-      from the device that filed it, because that is where the record of having shared it lives.
-      We deliberately do not keep an index of who published what — doing so would mean building
-      the very identity link this design avoids.</p>
-
-    <h2>Reporting a marker</h2>
-    <p>Tapping any shared marker offers <em>Report this marker</em>. A marker reported by
-      several people stops being shown. There is no free text in a shared report, so there is
-      nothing obscene one can contain; flagging is for markers that are wrong or misplaced.
-      Anything else, write to us.</p>
-
-    <h2 id="website">This website</h2>
-    <p>hoobiltit.com uses <strong>Google Analytics</strong> (measurement ID
-      <code>G-L46G8VYPYH</code>) to count visits and see which pages people read. Google sets
-      cookies in your browser for this and processes your IP address and basic device information
-      on our behalf. It applies to pages on hoobiltit.com only — <strong>the app contains no
-      analytics SDK</strong>, is not connected to this, and sends nothing to Google.</p>
-    <p>The site uses Google Consent Mode. In practice:</p>
-    <ul>
-      <li><strong>In the EEA, the UK and Switzerland</strong>, analytics storage is off until you
-        agree. Nothing is written to your browser and no identified measurement happens unless you
-        press Accept on the notice.</li>
-      <li><strong>Everywhere else</strong>, analytics is on by default and you can switch it off at
-        any time with the <strong>Cookie settings</strong> link in the footer of any page.
-        Declining also deletes any <code>_ga</code> cookies already set.</li>
-      <li><strong>Advertising signals are denied everywhere, always.</strong> No ad storage, no ad
-        personalisation, no ad user data. This site shows no ads.</li>
-    </ul>
-    <p>Your choice is remembered in your browser's local storage, not on a server.</p>
+    <p>For the app: nobody. Lookups go straight from your device to the public county, state and
+      federal map services that answer them, with nothing of ours in between. Those agencies
+      receive the coordinates of the query, as any map service must, and their own practices are
+      their own.</p>
 
     <h2>Children</h2>
     <p>hoobiltit is not directed at children and knowingly collects nothing from them.</p>
@@ -137,7 +81,7 @@
 
     <h2>Contact</h2>
     <p><!--email_off--><a href="mailto:support@hoobiltit.com">support@hoobiltit.com</a><!--/email_off-->.
-      We aim to answer reports about the shared map within one working day.</p>
+      We aim to answer within one working day.</p>
   </div>
 </main>
 

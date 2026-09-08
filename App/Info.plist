@@ -25,9 +25,9 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Drive mode identifies each road as you drive, which needs location while the screen is locked. Lookups go only to the public county and state map services that answer them, and drive mode publishes nothing. If you choose to add a report to the shared map, its location is rounded to about 100 metres first.</string>
+	<string>Drive mode identifies each road as you drive, which needs location while the screen is locked. Lookups go only to the public county and state map services that answer them. Nothing is recorded about you and nothing is published anywhere.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Used to centre the map on where you are. Road lookups go only to the public county and state map services that answer them. If you choose to add a report to the shared map, its location is rounded to about 100 metres and dated to the day before it is published. Nothing else about you is sent anywhere.</string>
+	<string>Used only to centre the map on where you are. Road lookups run on the pin you drop, and go only to the public county and state map services that answer them. Your location is never sent to any server of ours, because there is not one.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>

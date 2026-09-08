@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import RoadCore
 
 /// The roads identified on this drive, newest first.
@@ -34,6 +35,12 @@ struct DriveLogList: View {
                 if !roads.isEmpty {
                     ToolbarItem(placement: .destructiveAction) {
                         Button("Clear", role: .destructive) { onClear(); dismiss() }
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        ShareLink(item: DriveLogCSV(roads: roads),
+                                  preview: SharePreview("Roads this drive")) {
+                            Label("Export", systemImage: "square.and.arrow.up")
+                        }
                     }
                 }
             }
@@ -72,5 +79,36 @@ struct DriveLogList: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+
+/// The drive log as a CSV.
+///
+/// **Carries no coordinates, deliberately.** The log is an ordered trace of the roads somebody
+/// drove, in order — which is useful to look at yourself and is a movement record the moment it
+/// is one tap from a group chat. Road names and what the app found out about them are the useful
+/// part; the positions are the part that turns a list into a track.
+struct DriveLogCSV: Transferable {
+    let roads: [RoadRecord]
+
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(exportedContentType: .commaSeparatedText) { document in
+            Data(document.text.utf8)
+        }
+        .suggestedFileName("roads-this-drive.csv")
+    }
+
+    var text: String {
+        CSVWriter.document(
+            columns: ["Road", "Between", "Maintained by", "Years", "Jurisdiction"],
+            rows: roads.map { record in
+                let content = DriveCardContent(record: record)
+                return [content.roadName,
+                        record.crossStreets?.value,
+                        content.owner,
+                        content.years.isEmpty ? nil : content.years.joined(separator: " · "),
+                        record.jurisdiction?.value]
+            })
     }
 }

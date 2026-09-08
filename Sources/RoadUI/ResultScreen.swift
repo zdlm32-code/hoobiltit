@@ -41,15 +41,21 @@ public struct ResultScreen: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .primaryAction) {
-                    if let share {
-                        // Placed here rather than on the drive card: sharing while moving is the
-                        // wrong affordance, and both entry points already funnel through this
-                        // screen — the stationary "Full report" button and the drive card's tap
-                        // both present it with the record snapshotted.
-                        ShareLink(item: share,
-                                  preview: SharePreview(shareContent.roadName ?? "This road")) {
-                            Label("Share", systemImage: "square.and.arrow.up")
+                    Menu {
+                        if let share {
+                            ShareLink(item: share,
+                                      preview: SharePreview(shareContent.roadName ?? "This road")) {
+                                Label("Share the card", systemImage: "photo")
+                            }
                         }
+                        // The same answer as a file: greppable, pastes into an email, and it is
+                        // the form somebody actually filing something wants.
+                        ShareLink(item: RoadReportFile(name: fileName, text: reportText),
+                                  preview: SharePreview(fileName)) {
+                            Label("Share the full report", systemImage: "doc.text")
+                        }
+                    } label: {
+                        Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
             }
@@ -65,6 +71,14 @@ public struct ResultScreen: View {
     /// image cannot disagree with what the app showed on screen.
     private var shareContent: DriveCardContent {
         DriveCardContent(record: record, placeName: placeName)
+    }
+
+    private var reportText: String { ReportDocument.text(for: record, placeName: placeName) }
+
+    /// A filename somebody can find again, not "document.txt".
+    private var fileName: String {
+        let name = shareContent.roadName ?? "road"
+        return name.replacingOccurrences(of: "/", with: "-")
     }
 
     // MARK: - Provenance
@@ -456,10 +470,20 @@ public struct ResultScreen: View {
             } label: {
                 Label(copiedRequest ? "Copied" : "Copy request", systemImage: copiedRequest ? "checkmark" : "doc.on.doc")
             }
+
+            ShareLink(item: RecordsRequest.draft(for: record, agency: agency),
+                      preview: SharePreview("Records request")) {
+                Label("Send the request", systemImage: "square.and.arrow.up")
+            }
         } header: {
             Text("Ask for the rest")
         } footer: {
-            Text("Agency contact details are bundled with the app, checked "
+            // The one deliberate exception to the rule that a shared artefact carries no
+            // coordinate. The letter cites the pin to six decimal places because an agency has
+            // to know which stretch of road is being asked about — and unlike a card handed to a
+            // group chat, this one is addressed to a named public office.
+            Text("This letter includes the exact coordinate, because the agency needs it to "
+                 + "find the segment. Agency contact details are bundled with the app, checked "
                  + CalendarDate.medium(AgencyDirectory.bundled.capturedOn)
                  + ". Verify before relying on them.")
         }

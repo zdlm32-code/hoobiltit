@@ -43,22 +43,9 @@ public struct RoadMapScreen: View {
     /// Where the reticle actually points, converted from its screen position rather than
     /// inferred from the camera's bounding region. Nil only before the first layout pass.
     @State private var aimCoordinate: CLLocationCoordinate2D?
-    /// The shared map. Reads never depend on an iCloud account — the public database is readable
-    /// signed out — so this is created unconditionally.
-    private let pool: any PooledReportStore = CloudKitPool()
-    @State private var canContribute = false
-    @State private var pooled: [PooledReport] = []
-    @State private var poolFlags: [UUID: Int] = [:]
-    @State private var sharedReportIDs: Set<UUID> = []
-    @State private var poolFailure: PoolFailure?
-    @State private var pooledDetail: PooledReport?
-    /// The cells the pool was last fetched for, so panning inside them costs nothing.
-    @State private var fetchedCells: Set<String> = []
     @Environment(\.scenePhase) private var scenePhase
     @State private var previousRegion: MKCoordinateRegion?
     @State private var tappedParcel: ParcelReference?
-    @State private var reports: [RoadReport] = []
-    @State private var reportStore: ReportStore?
     @State private var loadingParcel = false
 
     public init(model: RoadLookupModel = RoadLookupModel()) {
@@ -94,12 +81,6 @@ public struct RoadMapScreen: View {
             .searchable(text: $model.searchText, prompt: "Search an address")
             .onSubmit(of: .search) { Task { await model.search() } }
             .task {
-                // Reports are durable user data; a failure to open the store must not stop the
-                // app doing its main job.
-                if reportStore == nil, let store = try? ReportStore() {
-                    reportStore = store
-                    reports = await store.all()
-                }
                 // Default behaviour: find the device, follow it, and keep naming the road
                 // under it. Aiming at the map is the fallback for when that is not possible.
                 if SamplePin.fromLaunchArguments() == nil {
@@ -110,12 +91,6 @@ public struct RoadMapScreen: View {
                 if let sample = SamplePin.fromLaunchArguments() {
                     model.drop(at: sample.coordinate)
                     camera = .region(zoomed(on: sample.coordinate))
-                    if ProcessInfo.processInfo.arguments.contains("-rate") {
-                        while model.phase != .resolved, !Task.isCancelled {
-                            try? await Task.sleep(for: .milliseconds(100))
-                        }
-                        sheet = .rateRoad
-                    }
                     if ProcessInfo.processInfo.arguments.contains("-report") {
                         // Wait for the pipeline before opening the report on it.
                         while model.phase != .resolved, !Task.isCancelled {
@@ -137,17 +112,6 @@ public struct RoadMapScreen: View {
                     if let record = model.record { SourceLog(record: record) }
                 case .parcel(let apn):
                     ParcelDetailSheet(apn: apn, parcel: tappedParcel, isLoading: loadingParcel)
-                case .rateRoad:
-                    ReportSheet(coordinate: reportCoordinate, record: model.record,
-                                onSave: { report, share in
-                                    Task { await saveReport(report, share: share) }
-                                },
-                                canContribute: canContribute)
-                case .myReports:
-                    ReportsList(reports: reports,
-                                onDelete: { id in Task { await deleteReport(id) } },
-                                sharedIDs: sharedReportIDs,
-                                onWithdraw: { id in Task { await withdraw(id) } })
                 case .driveLog:
                     DriveLogList(roads: model.driveLog) { model.clearDriveLog() }
                 }
@@ -212,31 +176,6 @@ public struct RoadMapScreen: View {
                 Annotation(reported.apn, coordinate: anchor.clLocation) { EmptyView() }
                     .annotationTitles(.visible)
             }
-            // Everyone else's, drawn hollow and smaller so "mine" versus "everyone's" reads at a
-            // glance — and so an empty pool looks like an absence rather than a bug.
-            ForEach(visiblePooled) { shared in
-                Annotation("", coordinate: shared.coordinate.clLocation) {
-                    Circle()
-                        .strokeBorder(shared.rating.tint, lineWidth: 3)
-                        .background(Circle().fill(.background.opacity(0.7)))
-                        .frame(width: 18, height: 18)
-                        .accessibilityLabel("Shared report: \(shared.issue.shortLabel), "
-                                            + "rated \(shared.rating.label)")
-                        .onTapGesture { pooledDetail = shared }
-                }
-            }
-            ForEach(reports) { report in
-                Annotation("", coordinate: report.coordinate.clLocation) {
-                    Image(systemName: report.issue.symbol)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 26, height: 26)
-                        .background(report.rating.tint, in: Circle())
-                        .overlay(Circle().strokeBorder(.white, lineWidth: 2))
-                        .shadow(radius: 1)
-                        .accessibilityLabel("\(report.issue.shortLabel), rated \(report.rating.label)")
-                }
-            }
             if let pin = model.pin, !model.isDriving {
                 Annotation("", coordinate: pin) {
                     Image(systemName: "mappin.circle.fill")
@@ -269,17 +208,6 @@ public struct RoadMapScreen: View {
         // A crash or a force-quit can leave one running; without this the lock screen shows a
         // road from a previous drive.
         .task { driveActivity.endStrayActivities() }
-        .task {
-            // Only ever gates *contributing*. Reads are unconditional: the public database is
-            // readable without an iCloud account, and gating them on this is the mistake that
-            // shows a signed-out user an empty map.
-            canContribute = await pool.canContribute()
-            sharedReportIDs = await reportStore?.sharedIDs() ?? []
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .CKAccountChanged)) { _ in
-            Task { canContribute = await pool.canContribute() }
-        }
-        .sheet(item: $pooledDetail) { PooledReportSheet(report: $0) { await flag($0) } }
         .onChange(of: model.driveCard) { _, card in
             guard model.isDriving, card.roadName != nil else { return }
             let state = DriveActivityState(card: card)
@@ -328,7 +256,6 @@ public struct RoadMapScreen: View {
             parcels.isAvailable = model.parcelsAvailable && !model.isDriving
             // `.onEnd` fires when panning stops, which is the debounce for this.
             parcels.update(for: context.region)
-            Task { await refreshPool(for: context.region) }
             // Classify who moved the camera. The previous rule compared the centre's drift
             // from the device against 35% of the span — 226 m at the follow zoom — so panning
             // to aim at a nearby road did not end the follow, and the next GPS fix snapped the
@@ -522,61 +449,6 @@ public struct RoadMapScreen: View {
         }
     }
 
-    /// Where a new report is pinned: the identified location if there is one, otherwise
-    /// whatever the crosshair is over.
-    private var reportCoordinate: Coordinate {
-        if let pin = model.pin {
-            return Coordinate(latitude: pin.latitude, longitude: pin.longitude)
-        }
-        let aim = aimCoordinate ?? region.center
-        return Coordinate(latitude: aim.latitude, longitude: aim.longitude)
-    }
-
-    private func saveReport(_ report: RoadReport, share: Bool) async {
-        guard let store = reportStore else { return }
-        await store.save(report)
-        reports = await store.all()
-        guard share else { return }
-
-        // The local report is already safe. Publishing is a separate, failable step, and a
-        // failure must never lose what the user wrote — it just does not reach the map.
-        do {
-            try await pool.publish(PooledReport(from: report))
-            await store.setShared(true, id: report.id)
-            sharedReportIDs = await store.sharedIDs()
-            poolFailure = nil
-        } catch {
-            poolFailure = (error as? PoolFailure) ?? .unknown("\(error)")
-        }
-    }
-
-    /// Takes a report back off the shared map.
-    ///
-    /// CloudKit's own `_creator` role enforces that only the person who published a record can
-    /// delete it, so this needs no identity handling at all — the record's name is the report's
-    /// UUID and the server does the rest.
-    private func withdraw(_ id: UUID) async {
-        do {
-            try await pool.retract(id: id)
-            await reportStore?.setShared(false, id: id)
-            sharedReportIDs = await reportStore?.sharedIDs() ?? []
-            pooled.removeAll { $0.id == id }
-            poolFailure = nil
-        } catch {
-            poolFailure = (error as? PoolFailure) ?? .unknown("\(error)")
-        }
-    }
-
-    private func flag(_ id: UUID) async {
-        try? await pool.flag(id: id)
-        poolFlags[id, default: 0] += 1
-    }
-
-    private func deleteReport(_ id: UUID) async {
-        guard let store = reportStore else { return }
-        await store.delete(id: id)
-        reports = await store.all()
-    }
 
     private func identifyCentre() {
         model.drop(at: aimCoordinate ?? region.center)
@@ -641,47 +513,6 @@ public struct RoadMapScreen: View {
     /// Always paired with a `false`: left set, it flattens the battery of a phone the user
     /// walked away from. iOS also clears it when the app backgrounds, so it cannot strand the
     /// screen on, but the explicit clear keeps the intent visible rather than relying on that.
-    /// Fetches everyone else's reports for the cells now on screen.
-    ///
-    /// Never while driving, and never for a viewport wider than the grid can carry — the same
-    /// two gates the parcel overlay uses, for the same reasons: pooled markers at speed are
-    /// clutter, and a county-wide query is one nobody wants to pay for.
-    private func refreshPool(for region: MKCoordinateRegion) async {
-        guard !model.isDriving else { return }
-        let centre = Coordinate(latitude: region.center.latitude,
-                                longitude: region.center.longitude)
-        guard let cells = PoolCell.covering(centre: centre, span: region.mapSpan) else {
-            pooled = []
-            return
-        }
-        // Panning inside cells already fetched costs nothing.
-        let wanted = Set(cells.map(\.identifier))
-        guard wanted != fetchedCells else { return }
-
-        do {
-            async let reports = pool.reports(in: cells)
-            async let flags = pool.flagCounts(in: cells)
-            pooled = try await reports
-            poolFlags = try await flags
-            fetchedCells = wanted
-            poolFailure = nil
-        } catch {
-            // Disclosed, never silent — and the user's own reports keep drawing regardless.
-            poolFailure = (error as? PoolFailure) ?? .unknown("\(error)")
-        }
-    }
-
-    /// Reports from other people, with the flagged ones withheld.
-    ///
-    /// Client-side because there is no server to act on a flag. Withholding at a threshold rather
-    /// than on a single flag means one person cannot silence a report they simply disagree with.
-    private var visiblePooled: [PooledReport] {
-        pooled.filter { report in
-            guard !sharedReportIDs.contains(report.id) else { return false }  // yours, drawn already
-            return (poolFlags[report.id] ?? 0) < PoolLimits.flagsToHide
-        }
-    }
-
     /// Re-derives the night flag from the setting, the device's position and the time.
     private func refreshAppearance() {
         let here = location.currentFix.map {
@@ -782,11 +613,6 @@ public struct RoadMapScreen: View {
         VStack(spacing: 10) {
             if let failure = model.searchFailure {
                 Banner(text: failure, icon: "magnifyingglass")
-            }
-            if let poolFailure {
-                // Disclosed rather than swallowed: a map that quietly shows nothing is
-                // indistinguishable from a road nobody has reported.
-                Banner(text: poolFailure.message, icon: "person.2.slash")
             }
             if let locationNotice {
                 LocationNotice(text: locationNotice,
@@ -899,13 +725,9 @@ public struct RoadMapScreen: View {
                     }
                 }
                 #endif
-                Button("Your reports\u{2026}", systemImage: "exclamationmark.bubble") {
-                    sheet = .myReports
-                }
                 Button("This drive\u{2026}", systemImage: "car") { sheet = .driveLog }
                 if model.record != nil {
                     Divider()
-                    Button("Rate this road\u{2026}", systemImage: "star") { sheet = .rateRoad }
                     Button("Source log\u{2026}", systemImage: "list.bullet.rectangle") {
                         sheet = .sources
                     }
@@ -1044,9 +866,6 @@ enum MapSheet: Identifiable {
     case report(RoadRecord)
     case sources
     case parcel(String)
-    /// Rate the road at this coordinate.
-    case rateRoad
-    case myReports
     /// The roads identified on this drive.
     case driveLog
 
@@ -1057,8 +876,6 @@ enum MapSheet: Identifiable {
             "report-\(record.query.coordinate.latitude),\(record.query.coordinate.longitude)"
         case .sources: "sources"
         case .parcel(let apn): "parcel-\(apn)"
-        case .rateRoad: "rate"
-        case .myReports: "myReports"
         case .driveLog: "driveLog"
         }
     }
