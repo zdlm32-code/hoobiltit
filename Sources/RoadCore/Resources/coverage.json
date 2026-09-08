@@ -631,6 +631,41 @@
       },
       "_comment": "480065 segments, every one named. Ownership_Status is NOT ownership - it is acceptance, and reads ACCEPTED on 479967 of 480065, which tells a reader nothing. Route_Type is the ownership signal: KY 382962, US 65034, I 15660 and PKWY 5640 are all Kentucky Transportation Cabinet, CITY 7869 is municipal, CNTY 2463 county, PRIV 21 private, FED 13 federal. Two rules because a city road needs its body named from City_Name ('Lexington') while a state route must not be renamed after the city it passes through. CNTY declines: County_Name is 'Hopkins' without the word County, so owner(named:) would read it as a municipality, and 2463 rows of 480065 is not worth a table to get right. PEND and OTHR decline too. No construction dates are published. Both rules list every route type, because a rule's names map is a rewrite table and not a whitelist: a value it does not mention falls through and is classified raw, which turned CNTY into a municipality called 'Cnty'.",
       "dateCaveat": "Kentucky publishes who is responsible for each road but no construction or resurfacing dates."
+    },
+    "19": {
+      "id": "ia.iowadot",
+      "displayName": "Iowa DOT road network",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Road_Network_View/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "OWNER_CODE",
+        "FED_FUNCTIONAL_CLASS",
+        "AADT",
+        "NUMBER_LANES",
+        "SURFACE_WIDTH",
+        "SPEED_LIMIT"
+      ],
+      "fields": {
+        "ownership": "OWNER_CODE",
+        "ownershipTable": "hpmsOwnership",
+        "functionalClass": "FED_FUNCTIONAL_CLASS",
+        "functionalClassTable": "fhwaFunctionalClass",
+        "aadt": "AADT",
+        "widthFeet": "SURFACE_WIDTH",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          " ",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "359066 segments. OWNER_CODE is the plain HPMS space - 4 municipal (152954), 2 county (138861), 1 state (59765), plus 11, 12, 21, 62, 63 and 70 - so the shipped table reads it and 2372 rows carrying none claim nothing. Deliberately does NOT map a name: COMMON_NAME_1 prefixes the owner onto the road ('CITY OF DANA, ECKSTEIN STREET') and SHORT_COMMON_NAME_1 still trails a direction ('S AVENUE, N'), so TIGER's name is the better one and Iowa contributes ownership. SURFACE_TYPE is undocumented numeric codes (65, 20, 31) and is not read. No construction dates are published.",
+      "dateCaveat": "Iowa publishes who owns each road but no construction or resurfacing dates."
     }
   },
   "counties": {
@@ -1191,6 +1226,36 @@
       },
       "_comment": "24327 segments. Found while searching for INDIANA: the scan returned it because the org is unlabelled, and its owner names - JEFFERSONTOWN, SHIVELY, MIDDLETOWN, 'OUT OF JEFFERSON' - are Jefferson County KENTUCKY suburbs. It returns zero features at Indianapolis and 171 at downtown Louisville. The third cross-state false positive of the batch, and the reason every candidate is now checked at an in-state pin. OWNER_NAME is METRO on 24174 rows plus 111 PRIVATE and a handful of independent suburbs; 'OUT OF JEFFERSON' declines rather than naming a body it does not know. FiscalYear is null on 23173 of 24327, so almost nothing carries a date and ProfileMapping drops an undated work entry.",
       "dateCaveat": "Louisville records pavement condition for every street but a paving year for only about a thousand of them."
+    },
+    "4159000": {
+      "id": "or.portland.centreline",
+      "displayName": "Portland metro road centreline",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services3.arcgis.com/q5Jezm9AgzqyE7Q6/arcgis/rest/services/TriMet_Road_Centerlines/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "NAME",
+        "ALIAS_NAME",
+        "ROADOWNER"
+      ],
+      "fields": {
+        "name": [
+          "NAME",
+          "ALIAS_NAME"
+        ],
+        "ownership": "ROADOWNER",
+        "ownershipTable": "namedAgency",
+        "nullStrings": [
+          "",
+          " ",
+          "Unknown",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "92464 centrelines published by TriMet for the Portland metro. ROADOWNER names 33 bodies outright - City of Portland 37314, Washington County 8314, City of Hillsboro 5179, Oregon Department of Transportation 2774 - and owner(named:) reads every shape it uses without a rename table: a trailing 'County' gives a county, 'Department of Transportation' the state, and a city name a municipality. 'Unknown' on 3224 rows is a null string and claims nothing. Keyed to Portland's place GEOID even though the layer covers the whole metro, which under-uses it at the edges but can never answer for a city it does not cover. Oregon publishes no statewide roadway service, so this is the state's only entry. No dates.",
+      "dateCaveat": "Portland publishes who owns each street but no construction or resurfacing dates."
     }
   }
 }

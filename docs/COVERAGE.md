@@ -6,7 +6,7 @@ part, because each one records what was actually checked so it is not re-probed 
 
 Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number is given.
 
-**25 profiles shipped · 11 states · 2 counties · 12 cities**
+**27 profiles shipped · 12 states · 2 counties · 13 cities**
 
 ---
 
@@ -18,6 +18,7 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | ✅ | **Texas** | TxDOT inventory + DCIS register | Owner, class, traffic; **73,306 projects 1970–2050 with cost**, contractor on live work | 10.2b, 10.2c |
 | ✅ | **North Carolina** | NCDOT road characteristics | 1.2M segments, names on 97%, **473,065 improvement dates**, 1,049 named owners. Only agency publishing domains | 18 |
 | ✅ | **Massachusetts** | MassDOT road inventory | 409,586 segments, 18 documented owners incl. private and **120,329 unaccepted**. Second agency publishing domains | 20 |
+| ✅ | **Iowa** | Iowa DOT road network | 359,066 segments with HPMS ownership; TIGER names them, because Iowa's name field prefixes the owner. No dates | 25 |
 | ✅ | **Kentucky** | KYTC road assets | 480,065 segments, every one named; ownership from route type, city roads named after their city. No dates | 24 |
 | ✅ | **Ohio** | ODOT road inventory | 402,947 segments, jurisdiction on all, names on 94%, **townships** as an authority. No dates | 19 |
 | ✅ | **Pennsylvania** | PennDOT roadway segments | Name, owner, `YR_BUILT` and `YR_RESURF` on state-owned roads | 10.1 |
@@ -41,8 +42,9 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | Maryland | iMap publishes no transportation or roads service at all | 23 |
 | Missouri | `MO_MoDOT_Roads_Arcs` carries a name and designation, no ownership | 23 |
 | California | Caltrans server has a `CHhighway` folder with one service | 18 |
-| Iowa | Flat inventory, not yet mapped | 10 |
 | Wisconsin, Minnesota, South Carolina | No statewide roadway service found | 24 |
+| Oklahoma, Connecticut, Utah, Nevada | No statewide roadway service naming an owner | 25 |
+| Oregon | No statewide service; Portland's metro centreline is shipped instead | 25 |
 | Colorado | `PavementCondition` is 437,195 segments carrying a route id, surface and survey year — no name, no owner | 24 |
 | Alabama | `HPMS_Year2017_F_System_Data` is 185,150 segments carrying only a record year and route id | 24 |
 | **National (FHWA)** | `HPMS_Public_Release` and `ARNOLD_Inventory_HPMS` return **`499 Token Required`** — settles that there is no national ownership layer without a key | 18 |
@@ -76,6 +78,7 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | ✅ | **Arlington, TX** | Pavement inventory | **Installed *and* replaced dates**; `Built`/`Reconstructed` are null decoys | 16 |
 | ✅ | **Laredo, TX** | Pavement condition | A real `YEAR_BUILT` on ~5,200 streets; 1980 placeholder on 50.9%, filtered | 16 |
 | ✅ | **Denver, CO** | Pavement treatments | `YR_LSTWK` on 82%, no sentinel; maintenance names the airport, parks, a cemetery | 20 |
+| ✅ | **Portland, OR** | TriMet metro centreline | 92,464 streets; owner names 33 bodies outright and needs no rename table. Oregon's only entry. No dates | 25 |
 | ✅ | **Louisville, KY** | Metro pavement condition | 24,327 streets: owner incl. 111 private, condition, class, cross streets. Paving year on ~1,150 only | 23 |
 | ✅ | **Edinburg, TX** | Capital projects | **Contractor, actual cost, completion date** on 139 projects | 15 |
 | ✅ | **Pharr, TX** | Street inventory | Owner incl. 697 private, pavement rating, 2015–18 repaving | 15 |

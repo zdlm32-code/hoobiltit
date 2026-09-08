@@ -1993,3 +1993,54 @@ list every route type, and a test asserts they do.
 
 Wisconsin, Alabama and Tennessee searches all returned the **Chattanooga tri-state HPMS extract**
 already rejected in §22. It is the single most common false positive in this survey.
+
+---
+
+## 25. Batch four — Iowa, Portland, and four searches that returned other states
+
+Oregon, Oklahoma, Connecticut, Utah, Iowa and Nevada. Two shipped, neither of them where the
+search was aimed in the way expected.
+
+### Iowa — ownership statewide, naming left to TIGER
+
+```
+https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Road_Network_View/FeatureServer/0
+```
+
+**359,066 segments**, and `OWNER_CODE` is the plain HPMS space — 4 municipal (152,954), 2 county
+(138,861), 1 state (59,765) — so the shipped table reads it.
+
+**It deliberately maps no name.** `COMMON_NAME_1` prefixes the owner onto the road:
+`CITY OF DANA, ECKSTEIN STREET`. `SHORT_COMMON_NAME_1` drops the prefix and still trails a
+direction: `S AVENUE, N`. TIGER gives *Eckstein St*, so Iowa contributes the owner and TIGER the
+name — the same division of labour Texas uses on its on-system routes. `SURFACE_TYPE` is
+undocumented numeric codes (65, 20, 31) and is not read.
+
+### Portland — 33 owners and no rename table
+
+```
+https://services3.arcgis.com/q5Jezm9AgzqyE7Q6/arcgis/rest/services/TriMet_Road_Centerlines/FeatureServer/0
+```
+
+92,464 centrelines published by the transit agency for the metro. `ROADOWNER` names the body
+outright — *City of Portland* 37,314, *Washington County* 8,314, *Oregon Department of
+Transportation* 2,774 — and `owner(named:)` already reads every shape it uses: a trailing
+"County" gives a county, "Department of Transportation" the state, a city name a municipality.
+**No `ownerNames` entry was needed at all**, the first profile where that is true.
+
+Keyed to Portland's place GEOID although the layer covers the whole metro. That under-uses it at
+the edges and can never answer for a city it does not cover, which is the safer error. Oregon
+publishes no statewide roadway service, so this is the state's only entry.
+
+### Four searches, four other states
+
+| Searched for | What came back |
+|---|---|
+| Oklahoma | `MA_DOT_Road_Inventory_2020` — **Massachusetts**, 627,388 segments |
+| Nevada | `TxDOT_roadways` — **Texas** |
+| Connecticut | the Tennessee `Pavement_Roughness` layer |
+| Wisconsin, Alabama, Tennessee (§24) | the Chattanooga tri-state HPMS extract |
+
+Oklahoma's own `Pavement_Change` layers carry a maintenance division and nothing else; Utah's
+`HPMS_Report_GIS` is 24,720 segments with no ownership field. **Six cross-state false positives
+in four batches** — the in-state pin check is now the single most useful step in the loop.

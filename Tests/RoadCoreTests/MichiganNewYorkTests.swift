@@ -191,3 +191,49 @@ struct KentuckyTests {
         #expect(fragment.owner == nil)
     }
 }
+
+@Suite("Iowa and Portland")
+struct IowaPortlandTests {
+    let iowaCity = RoadQuery(latitude: 42.106342, longitude: -94.242141)
+    let portland = RoadQuery(latitude: 45.512287, longitude: -122.687455)
+
+    @Test("Iowa supplies the owner and leaves the naming to TIGER")
+    func iowaOwnership() async throws {
+        let source = FlatInventorySource(
+            profile: CoverageCatalog.bundled.profile(forState: "19")!,
+            client: ArcGISClient(transport: FixtureTransport([
+                "Road_Network_View/FeatureServer/0": .fixture("iowadot_city")])),
+            now: { fixedNow })!
+        let fragment = try await source.fetch(iowaCity)
+        #expect(fragment.owner?.value == .municipality(name: "City or municipal highway agency",
+                                                       fullName: "City or municipal highway agency"))
+        // Iowa's own name field prefixes the owner onto the road — "CITY OF DANA, ECKSTEIN
+        // STREET" — and the short form still trails a direction, "S AVENUE, N". TIGER's is
+        // better, so nothing is claimed here and TIGER names it.
+        #expect(fragment.segmentName == nil)
+        let profile = try #require(CoverageCatalog.bundled.profile(forState: "19"))
+        #expect(profile.fields?.name == nil)
+        #expect(profile.fields?.nameParts == nil)
+    }
+
+    @Test("Portland's owner field names the body with no rename table at all")
+    func portlandOwnership() async throws {
+        let source = FlatInventorySource(
+            profile: CoverageCatalog.bundled.profile(forPlace: "4159000")!,
+            client: ArcGISClient(transport: FixtureTransport([
+                "TriMet_Road_Centerlines/FeatureServer/0": .fixture("trimet_portland")])),
+            now: { fixedNow })!
+        let fragment = try await source.fetch(portland)
+        #expect(fragment.segmentName?.value == "HARRISON")
+        #expect(fragment.owner?.value == .municipality(name: "City of Portland",
+                                                       fullName: "City of Portland"))
+        // 33 bodies, every shape already handled: a trailing "County" gives a county,
+        // "Department of Transportation" the state, a city name a municipality.
+        #expect(CodeTables.owner(named: "Washington County")
+                == .county(agency: "Washington County"))
+        #expect(CodeTables.owner(named: "Oregon Department of Transportation")
+                == .state(agency: "Oregon Department of Transportation"))
+        // "Unknown" on 3,224 rows says nothing and claims nothing.
+        #expect(CodeTables.owner(named: "Unknown") == nil)
+    }
+}
