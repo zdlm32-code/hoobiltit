@@ -567,6 +567,70 @@
       },
       "_comment": "394175 segments on layer 11, 'Maintenance Jurisdiction' - not the Federal Aid layers 1-4, which cover 16677 to 54221 each. SEGMENT_NAME is on 355159 (90%). NYSDOT is the THIRD agency found publishing coded-value domains, after NCDOT and MassDOT: fourteen of them here. OWNING_JURIS is the HPMS code space with New York's own labels (01 NYSDOT, 03 Town, 31 NYS Thruway, 26 Private) so the shipped hpmsOwnership table reads it, and 98/99 'to be investigated' fall outside it and claim nothing. OWNED_BY_MUNI_NAME names the body and is safe to attach: it is null on ALL 76742 NYSDOT rows and present on ALL 109379 city rows, so a state road can never be renamed after a municipality. FUNC_CLASS is deliberately NOT mapped - New York uses the two-digit extended scheme this repo has warned about since section 10, values running to 19, and the FHWA 1-7 table would decode them wrongly. No construction dates are published.",
       "dateCaveat": "New York publishes who maintains each road but no construction or resurfacing dates."
+    },
+    "21": {
+      "id": "ky.kytc",
+      "displayName": "KYTC road assets",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services2.arcgis.com/CcI36Pduqd0OR4W9/arcgis/rest/services/KYTC_-_State_Road_Assets_Flattened/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "Road_Name",
+        "Route_Type",
+        "Route_Label",
+        "City_Name",
+        "County_Name",
+        "Ownership_Status"
+      ],
+      "fields": {
+        "name": [
+          "Road_Name"
+        ],
+        "ownershipRules": [
+          {
+            "field": "Route_Type",
+            "table": "namedAgency",
+            "names": {
+              "KY": "Kentucky Transportation Cabinet",
+              "US": "Kentucky Transportation Cabinet",
+              "I": "Kentucky Transportation Cabinet",
+              "PKWY": "Kentucky Transportation Cabinet",
+              "PRIV": "Private",
+              "FED": "Federal agency",
+              "CITY": "",
+              "CNTY": "",
+              "PEND": "",
+              "OTHR": ""
+            }
+          },
+          {
+            "field": "Route_Type",
+            "table": "namedAgency",
+            "names": {
+              "CITY": "City",
+              "KY": "",
+              "US": "",
+              "I": "",
+              "PKWY": "",
+              "PRIV": "",
+              "FED": "",
+              "CNTY": "",
+              "PEND": "",
+              "OTHR": ""
+            },
+            "nameField": "City_Name"
+          }
+        ],
+        "nullStrings": [
+          "",
+          " ",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "480065 segments, every one named. Ownership_Status is NOT ownership - it is acceptance, and reads ACCEPTED on 479967 of 480065, which tells a reader nothing. Route_Type is the ownership signal: KY 382962, US 65034, I 15660 and PKWY 5640 are all Kentucky Transportation Cabinet, CITY 7869 is municipal, CNTY 2463 county, PRIV 21 private, FED 13 federal. Two rules because a city road needs its body named from City_Name ('Lexington') while a state route must not be renamed after the city it passes through. CNTY declines: County_Name is 'Hopkins' without the word County, so owner(named:) would read it as a municipality, and 2463 rows of 480065 is not worth a table to get right. PEND and OTHR decline too. No construction dates are published. Both rules list every route type, because a rule's names map is a rewrite table and not a whitelist: a value it does not mention falls through and is classified raw, which turned CNTY into a municipality called 'Cnty'.",
+      "dateCaveat": "Kentucky publishes who is responsible for each road but no construction or resurfacing dates."
     }
   },
   "counties": {

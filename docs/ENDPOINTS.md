@@ -1952,3 +1952,44 @@ Taken on its merits it is a good city source: 24,327 streets with `OWNER_NAME` (
 streets. `OUT OF JEFFERSON` maps to an empty rename so it declines rather than naming a body it
 does not know. `FiscalYear` is null on 23,173 of 24,327, so almost nothing carries a paving date
 and the undated-work rule drops the rest.
+
+---
+
+## 24. Batch three — Kentucky, and the difference between acceptance and ownership
+
+Wisconsin, Colorado, Minnesota, South Carolina, Alabama and Kentucky. One shipped.
+
+### Kentucky
+
+```
+https://services2.arcgis.com/CcI36Pduqd0OR4W9/arcgis/rest/services/KYTC_-_State_Road_Assets_Flattened/FeatureServer/0
+```
+
+**480,065 segments, every one named.** The field to ignore is the one that sounds right:
+`Ownership_Status` reads `ACCEPTED` on **479,967 of 480,065** — it records whether the state took
+a road into its system, not who keeps it, and mapping it would have told every driver in Kentucky
+the same thing.
+
+`Route_Type` is the ownership signal: `KY` 382,962, `US` 65,034, `I` 15,660 and `PKWY` 5,640 are
+all the Transportation Cabinet; `CITY` 7,869 is municipal, `CNTY` 2,463 county, `PRIV` 21 private,
+`FED` 13 federal. Two rules, because a city road needs its body named from `City_Name`
+("Lexington") while a state route must not be renamed after the city it passes through.
+
+`CNTY` declines deliberately: `County_Name` is `Hopkins`, without the word County, so
+`owner(named:)` would read it as a municipality — and 2,463 rows of 480,065 is not worth a table
+to get right.
+
+**A rule's rename map is not a whitelist.** With only `CITY` listed in the second rule, `CNTY`
+fell through, was classified raw, and produced a municipality called **"Cnty"**. Both rules now
+list every route type, and a test asserts they do.
+
+### The five rejections
+
+| State | What it publishes |
+|---|---|
+| Colorado | `PavementCondition_forConditionDashboard_AllYears`, 437,195 segments — route id, surface type, functional class id and a survey year. No name, no owner. (Denver's own layer is shipped, §20.) |
+| Alabama | `HPMS_Year2017_F_System_Data`, 185,150 segments carrying a record year and a route id and nothing else. |
+| Wisconsin, Minnesota, South Carolina | No statewide roadway service found on ArcGIS Online or the DOT's own server. |
+
+Wisconsin, Alabama and Tennessee searches all returned the **Chattanooga tri-state HPMS extract**
+already rejected in §22. It is the single most common false positive in this survey.

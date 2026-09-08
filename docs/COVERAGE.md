@@ -6,7 +6,7 @@ part, because each one records what was actually checked so it is not re-probed 
 
 Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number is given.
 
-**24 profiles shipped · 10 states · 2 counties · 12 cities**
+**25 profiles shipped · 11 states · 2 counties · 12 cities**
 
 ---
 
@@ -18,6 +18,7 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | ✅ | **Texas** | TxDOT inventory + DCIS register | Owner, class, traffic; **73,306 projects 1970–2050 with cost**, contractor on live work | 10.2b, 10.2c |
 | ✅ | **North Carolina** | NCDOT road characteristics | 1.2M segments, names on 97%, **473,065 improvement dates**, 1,049 named owners. Only agency publishing domains | 18 |
 | ✅ | **Massachusetts** | MassDOT road inventory | 409,586 segments, 18 documented owners incl. private and **120,329 unaccepted**. Second agency publishing domains | 20 |
+| ✅ | **Kentucky** | KYTC road assets | 480,065 segments, every one named; ownership from route type, city roads named after their city. No dates | 24 |
 | ✅ | **Ohio** | ODOT road inventory | 402,947 segments, jurisdiction on all, names on 94%, **townships** as an authority. No dates | 19 |
 | ✅ | **Pennsylvania** | PennDOT roadway segments | Name, owner, `YR_BUILT` and `YR_RESURF` on state-owned roads | 10.1 |
 | ✅ | **New York** | NYSDOT maintenance jurisdiction | 394,175 segments, names on 90%, ownership named down to the borough. Third agency publishing domains. No dates | 22 |
@@ -40,7 +41,10 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | Maryland | iMap publishes no transportation or roads service at all | 23 |
 | Missouri | `MO_MoDOT_Roads_Arcs` carries a name and designation, no ownership | 23 |
 | California | Caltrans server has a `CHhighway` folder with one service | 18 |
-| Iowa, Tennessee | Flat inventories, not yet mapped | 10 |
+| Iowa | Flat inventory, not yet mapped | 10 |
+| Wisconsin, Minnesota, South Carolina | No statewide roadway service found | 24 |
+| Colorado | `PavementCondition` is 437,195 segments carrying a route id, surface and survey year — no name, no owner | 24 |
+| Alabama | `HPMS_Year2017_F_System_Data` is 185,150 segments carrying only a record year and route id | 24 |
 | **National (FHWA)** | `HPMS_Public_Release` and `ARNOLD_Inventory_HPMS` return **`499 Token Required`** — settles that there is no national ownership layer without a key | 18 |
 
 ---

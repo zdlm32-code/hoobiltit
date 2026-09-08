@@ -139,3 +139,55 @@ struct LouisvilleTests {
         #expect(profile.fields?.ownerNames?["METRO"] == "Louisville Metro")
     }
 }
+
+@Suite("Kentucky — acceptance is not ownership")
+struct KentuckyTests {
+    let lexingtonStreet = RoadQuery(latitude: 38.062568, longitude: -84.455213)
+    let countyRoad = RoadQuery(latitude: 37.294323, longitude: -87.510226)
+
+    private func source(_ fixture: String) -> FlatInventorySource {
+        FlatInventorySource(profile: CoverageCatalog.bundled.profile(forState: "21")!,
+                            client: ArcGISClient(transport: FixtureTransport([
+                                "KYTC_-_State_Road_Assets_Flattened/FeatureServer/0":
+                                    .fixture(fixture)])),
+                            now: { fixedNow })!
+    }
+
+    @Test("A city road is named after its city, not the cabinet")
+    func cityRoad() async throws {
+        let fragment = try await source("kytc_city").fetch(lexingtonStreet)
+        #expect(fragment.segmentName?.value == "BRYANWOOD PKWY")
+        #expect(fragment.owner?.value == .municipality(name: "Lexington", fullName: "Lexington"))
+    }
+
+    @Test("The field called Ownership_Status is not ownership")
+    func acceptanceIsNotOwnership() throws {
+        // It reads ACCEPTED on 479,967 of 480,065 — it records whether the state took the road
+        // into its system, not who keeps it. Route_Type is the signal.
+        let profile = try #require(CoverageCatalog.bundled.profile(forState: "21"))
+        let rules = try #require(profile.fields?.ownershipRules)
+        #expect(rules.allSatisfy { $0.field == "Route_Type" })
+        #expect(profile.fields?.ownership == nil)
+    }
+
+    /// The interaction that produced a municipality called "Cnty".
+    @Test("A rule's rename map is not a whitelist, so every value is listed")
+    func namesMapIsNotAWhitelist() async throws {
+        // `ownerNames` rewrites a value before classification; a value it does not mention
+        // falls through and is classified raw. With only CITY listed in the second rule, CNTY
+        // reached `owner(named:)` and came back title-cased as a municipality named "Cnty".
+        let profile = try #require(CoverageCatalog.bundled.profile(forState: "21"))
+        for rule in try #require(profile.fields?.ownershipRules) {
+            let names = try #require(rule.names)
+            for routeType in ["KY", "US", "I", "PKWY", "CITY", "CNTY", "PRIV", "FED",
+                              "PEND", "OTHR"] {
+                #expect(names[routeType] != nil,
+                        "\(routeType) is unlisted in a rule and would classify raw")
+            }
+        }
+        // And the county road it produced now claims nothing.
+        let fragment = try await source("kytc_county").fetch(countyRoad)
+        #expect(fragment.segmentName?.value == "MAPLE LN")
+        #expect(fragment.owner == nil)
+    }
+}
