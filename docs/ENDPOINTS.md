@@ -2245,3 +2245,85 @@ failed — a profile using it just reported no owner.
 
 Both paths now route through one `decode(_:table:names:)` with an **exhaustive switch**, so
 adding a `CodeTableReference` case is a compile error until it is handled, on both paths at once.
+
+## 29. Batch eight — Delaware, and a join that looked cleaner than it was
+
+### Delaware — the decode was in a sibling layer
+
+An earlier batch rejected Delaware because `MAINT_RSP_CODE` had no published domain and no
+self-describing field to derive it against. Both halves were true of the layer being looked at
+and false of the service. `DE_Roadways_Main` has twenty layers, and **layer 7, MAINTENANCE
+RESPONSIBILITY**, carries `VALUE_TEXT` in plain English:
+
+| `VALUE_TEXT` | n |
+|---|---|
+| Suburban Road Maintained by State | 7,563 |
+| Municipal Road Maintained by Municipal Forces | 4,323 |
+| State Road Maintained by State | 2,396 |
+| Suburban Road Maintained by Other Forces | 100 |
+| Municipal Road Maintained by Other Forces | 98 |
+| State Road Maintained by DRBA Forces | 25 |
+| ACOE Owned Road Maintained by State | 7 |
+| State Road Maintained by Other Forces | 1 |
+
+The shape is `<owner> Road Maintained by <maintainer>`, which is more than `MAINT_RSP_CODE` alone
+says.
+
+**The first join was wrong.** Taking forty road ids per text and looking up their
+`MAINT_RSP_CODE` in layer 2 gave 1,895 segments of code 1 for "State Road Maintained by State"
+and no contradictions, which read as conclusive. It was not: layer 7 is segmented by **milepost**,
+so one `RDWAY_ID` carries several stretches kept by different bodies, and the same road id turned
+up under two different texts. The clean-looking result came from most Delaware roads being
+state-maintained, not from the join being sound.
+
+Restricted to the **13,852 of 13,969 road ids (99%) that carry exactly one text**, it settles
+properly:
+
+| text | segments | `MAINT_RSP_CODE` |
+|---|---|---|
+| State Road Maintained by State | 6,000 | **1** ×6,000 |
+| Suburban Road Maintained by State | 1,673 | **1** ×1,669, 2 ×4 |
+| State Road Maintained by DRBA Forces | 239 | **1** ×239 |
+| Municipal Road Maintained by Municipal Forces | 2,191 | **2** ×2,191 |
+| the three "… Maintained by Other Forces" | 210 | **3** ×210 |
+
+So `1` is state (95,762 rows, **85.2%** — DelDOT maintains almost every road in Delaware, which is
+unusual and true), `2` is municipal (16,198), and `3` (486) means kept by someone who is neither.
+Code 3 is a real category and still names no authority, so it declines. 239 segments under code 1
+are maintained by the Delaware River and Bay Authority; the state still owns the road.
+
+`YEAR_LAST_IMP_DATE` is a genuine improvement year — 61,909 rows, 19 distinct values over
+1983–2025, no sentinel. `ACCEPT_YEAR_CODE` (32,039 rows, 1900–2004) records when the state
+**accepted** the road into its system, which is not when it was built; no field means that, so it
+is left unmapped rather than dressed up.
+
+**The guard caught this on its first run.** `check_delaware_maint` was written knowing three
+texts and immediately reported a fourth on 231 rows — which is how the milepost problem surfaced
+at all. It now knows all eight and fires on a ninth.
+
+### Rhode Island — rejected, and why the Delaware trick did not rescue it
+
+`RIDOT_Roads_2016` is 71,384 roads with `JURIS`, values 0–7. Everything that could decode it was
+checked:
+
+- **No published domain**, on any layer in the service.
+- **No sibling decode layer.** The org holds `Highway_Numbers` (218 shield polygons),
+  `RoadCenterLine` and `TRANS_Roads_E911_24r1` — both NG911 address centrelines with no
+  jurisdiction field. `RoadCenterLine`'s `roadclass` domain is Vermont's `AOTCLASS` vocabulary
+  copied verbatim, boilerplate rather than Rhode Island's own.
+- **`DIVISION` is not maintenance.** It is populated on **100%** of rows and its seven values are
+  KENT, BRISTOL, PROVIDENCE, NEWPORT, WASHINGTON NORTH/SOUTH, NORTHWEST — geography. A field
+  present on every row separates nothing, the same way Nebraska's `MAINTBY = 1` and Kentucky's
+  `Ownership_Status = ACCEPTED` did.
+- **Name evidence resolves only part of it.** Names matching a numbered route or ramp: JURIS 4 at
+  85.4%, JURIS 3 at 55.8% — clearly the state freeway system — but JURIS 2 at **3.4%** and JURIS 1
+  at 0.2%. That leaves the 57,023 rows of JURIS 1 and the 9,240 of JURIS 2, 93% of the state,
+  resting on nothing but a correlation with functional class.
+
+`JURIS 1` being city and `JURIS 2` being state is very likely right and is still a guess. Rhode
+Island is recorded as rejected rather than shipped on a hunch.
+
+### Where the fifty stand
+
+All fifty states now appear in [`COVERAGE.md`](COVERAGE.md) — nineteen shipped, the rest recorded
+with what was checked.

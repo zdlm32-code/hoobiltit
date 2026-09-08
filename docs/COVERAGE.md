@@ -6,7 +6,7 @@ part, because each one records what was actually checked so it is not re-probed 
 
 Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number is given.
 
-**33 profiles shipped · 18 states · 2 counties · 13 cities**
+**34 profiles shipped · 19 states · 2 counties · 13 cities**
 
 ---
 
@@ -32,6 +32,7 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | ✅ | **New Hampshire** | NHDOT road inventory (GRANIT) | 111,680 segments; `LC_LEGEND` names every one, incl. 25,985 private and **3,351 Class VI roads nobody maintains**. No dates | 28 |
 | ✅ | **Montana** | Montana transportation framework | 238,768 centrelines with a **published ownership domain**; names all, owns 51,010 — silent on the other 78.6%. No dates | 28 |
 | ✅ | **South Dakota** | SDDOT road inventory | 150,179 segments from **SDDOT's own server**; 38,361 township roads, 3,051 **road district** roads, county secondary kept apart. No dates | 28 |
+| ✅ | **Delaware** | DelDOT road inventory (FirstMap) | 112,446 segments; the **state maintains 85%** of every road in Delaware, plus a real `YEAR_LAST_IMP_DATE` on 55% | 29 |
 
 ### Probed, not shipped
 
@@ -61,6 +62,7 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | Wyoming | Census All Roads (198,183) and BLM's mixed roads answer in-state but neither names an owner | 27 |
 | Alaska | Only national layers answer; `REF_Pavement_Dash` (387,953) carries a maintenance **district**, not an owner | 27 |
 | West Virginia | `WV_Pavement_2020` is 26,772 rows with a survey year and no ownership field | 27 |
+| Rhode Island | RIDOT's 71,384 roads carry `JURIS` with **no domain**, no sibling decode layer, and `DIVISION` is geography — populated on 100% of rows. Name evidence resolves 4,365 of them | 29 |
 | **National (FHWA)** | `HPMS_Public_Release` and `ARNOLD_Inventory_HPMS` return **`499 Token Required`** — settles that there is no national ownership layer without a key | 18 |
 
 ---

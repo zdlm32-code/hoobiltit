@@ -911,6 +911,52 @@
       },
       "_comment": "111680 segments on layer 5, not 0, served from NH GRANIT at nhgeodata.unh.edu. The same inventory also appears inside a VERMONT Amtrak study on ArcGIS Online; this is the first-party publication and is used instead. OWNERSHIP is a trap - it reads TOWN and PRIVATE on most rows but numeric patrol codes (611, 325, 324) on the state ones, so it is not mapped. LC_LEGEND is the clean field: exactly 7 values covering every row, no codes - Local 60621, Private 25985, State 21291, NOT MAINTAINED 3351, Federal 306, Recreation 111, Out of state 15. Its Not Maintained count matches LEGIS_CLASS VI exactly, which is New Hampshire's Class VI road: a public right of way the town has voted to stop maintaining, and the one honest answer is that nobody keeps it. Recreation and Out of state name no authority and claim nothing. FUNCT_SYSTEM is the plain FHWA 1-7. No construction dates.",
       "dateCaveat": "New Hampshire publishes who keeps each road, including its unmaintained Class VI roads, but no construction dates."
+    },
+    "10": {
+      "id": "de.deldot",
+      "displayName": "Delaware road inventory",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://enterprise.firstmap.delaware.gov/arcgis/rest/services/Transportation/DE_Roadways_Main/MapServer",
+      "layer": 2,
+      "outFields": [
+        "RDWAY_NAME",
+        "MAINT_RSP_CODE",
+        "YEAR_LAST_IMP_DATE",
+        "HPMS_FNCTNL_CLASS",
+        "ROUTE_NO",
+        "LANES_QTY",
+        "SRFC_WDTH_QTY"
+      ],
+      "fields": {
+        "name": [
+          "RDWAY_NAME"
+        ],
+        "ownership": "MAINT_RSP_CODE",
+        "ownershipTable": "authorityLevel",
+        "ownerNames": {
+          "1": "State",
+          "2": "City",
+          "3": ""
+        },
+        "yearImproved": "YEAR_LAST_IMP_DATE",
+        "yearEncoding": "yearNumber",
+        "functionalClass": "HPMS_FNCTNL_CLASS",
+        "functionalClassTable": "fhwaFunctionalClass",
+        "widthFeet": "SRFC_WDTH_QTY",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          "  ",
+          "UNKNOWN",
+          "N/A",
+          "REFER CENTER LINE LAYER FOR ROAD NAME"
+        ]
+      },
+      "_comment": "112446 segments on layer 2 of DelDOT's OWN server at firstmap.delaware.gov. MAINT_RSP_CODE was written off in an earlier batch as undecodable - no published domain, no self-describing field. The decode was in a SIBLING LAYER all along: layer 7 MAINTENANCE RESPONSIBILITY carries VALUE_TEXT in plain English, shaped '<owner> Road Maintained by <maintainer>' across eight values. Layer 7 is segmented by milepost, so joining on RDWAY_ID alone conflates stretches of one road that are kept by different bodies - a first attempt did exactly that and looked cleaner than it was. Restricting the join to the 13852 of 13969 road ids (99%) that carry exactly ONE text settles it: 'State Road Maintained by State' gave code 1 on 6000 of 6000 segments, 'Suburban Road Maintained by State' on 1669 of 1673, 'Municipal Road Maintained by Municipal Forces' gave 2 on 2191 of 2191, and all three '... Maintained by Other Forces' texts gave 3 on 210 of 210. So 1 is state (95762 rows, 85.2% - Delaware's state department maintains almost every road in the state, which is unusual and true), 2 is municipal (16198, 14.4%), and 3 (486, 0.4%) means kept by someone who is neither. 3 names no authority, so it declines rather than guessing. 239 segments under code 1 are actually maintained by the Delaware River and Bay Authority; they are a quarter of one percent and the state still owns the road. YEAR_LAST_IMP_DATE is a real improvement year on 61909 rows (55.1%), 19 distinct values over 1983-2025 with no sentinel. ACCEPT_YEAR_CODE (32039 rows, 1900-2004) is when the state ACCEPTED the road into its system, not when it was built - no field means that, so it is deliberately not mapped rather than dressed up as a construction date.",
+      "dateCaveat": "Delaware publishes when a road was last improved, not when it was first built."
     }
   },
   "counties": {

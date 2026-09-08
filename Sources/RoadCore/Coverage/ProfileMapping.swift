@@ -103,7 +103,15 @@ public enum ProfileMapping {
         case .dallasMaintenance:
             return CodeTables.owner(dallas: value.text)
         case .authorityLevel:
-            guard let text = value.text, !mapping.isNull(text) else { return nil }
+            guard var text = value.text, !mapping.isNull(text) else { return nil }
+            // Rewritten first, exactly as `.namedAgency` is, so a layer that codes the level
+            // as a number can still use the shared table: Delaware writes `1` and `2` where
+            // Montana writes `State` and `City`. An empty rewrite declines, which is how
+            // Delaware's third code — 486 rows that mean neither — says nothing.
+            if let renamed = names?[text] {
+                guard !renamed.isEmpty else { return nil }
+                text = renamed
+            }
             return CodeTables.owner(level: text)
         case .namedAgency:
             guard var text = value.text, !mapping.isNull(text) else { return nil }

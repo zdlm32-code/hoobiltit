@@ -454,6 +454,52 @@ else: print("ok:%d"%notm)')
   echo
 }
 
+check_delaware_maint() {
+  echo "=== DelDOT MAINT_RSP_CODE, against the sibling layer that decodes it (ENDPOINTS.md 29)"
+  local B="https://enterprise.firstmap.delaware.gov/arcgis/rest/services/Transportation/DE_Roadways_Main/MapServer"
+  local out
+  out=$(python3 /dev/stdin "$B" <<'DEPY'
+import json, sys, urllib.parse, urllib.request
+B = sys.argv[1]
+def q(lid, **kw):
+    kw.setdefault("f", "json")
+    return json.load(urllib.request.urlopen(f"{B}/{lid}/query?" + urllib.parse.urlencode(kw), timeout=90))
+# All eight texts layer 7 publishes. The guard fires on a ninth, because the mapping of
+# MAINT_RSP_CODE rests entirely on which of these each code turned out to mean.
+KNOWN = ["State Road Maintained by State", "Suburban Road Maintained by State",
+         "Municipal Road Maintained by Municipal Forces",
+         "Suburban Road Maintained by Other Forces",
+         "Municipal Road Maintained by Other Forces",
+         "State Road Maintained by DRBA Forces",
+         "ACOE Owned Road Maintained by State",
+         "State Road Maintained by Other Forces"]
+try:
+    # Layer 7's plain-English text is the evidence; layer 2's code is what ships.
+    seen = sum(1 for t in KNOWN if q(7, where=f"VALUE_TEXT='{t}'", returnCountOnly="true").get("count", 0))
+    quoted = ",".join("'" + t + "'" for t in KNOWN)
+    extra = q(7, where=f"VALUE_TEXT NOT IN ({quoted})", returnCountOnly="true").get("count", 0)
+    codes = {c: q(2, where=f"MAINT_RSP_CODE='{c}'", returnCountOnly="true").get("count", 0)
+             for c in ["1", "2", "3", "4", "5"]}
+except Exception:
+    print("err"); raise SystemExit
+if extra: print("newtext:%d" % extra)
+elif seen < 4: print("lost:%d" % seen)
+elif codes["4"] or codes["5"]: print("newcode")
+else: print("ok:%d/%d/%d" % (codes["1"], codes["2"], codes["3"]))
+DEPY
+)
+  echo "  MAINT_RSP_CODE -> ${out:-?}"
+  case "$out" in
+    ok:*)      echo "  OK: the known texts, and state/municipal/other = ${out#ok:}." ;;
+    newtext:*) echo "  CHECK: layer 7 has a maintenance text this build does not know (${out#newtext:} rows)." ;;
+    newcode)   echo "  CHECK: a fourth MAINT_RSP_CODE appeared -- re-run the RDWAY_ID join before mapping it." ;;
+    lost:*)    echo "  CHECK: layer 7 has stopped publishing most of its texts; the derivation rests on them." ;;
+    err)       echo "  INCONCLUSIVE: the request failed; re-run before drawing any conclusion." ;;
+    *)         echo "  CHECK: unexpected result." ;;
+  esac
+  echo
+}
+
 # Feature count for a query URL, or the string "err" if the request did not come back.
 count() {
   curl -s -m 25 --retry 3 --retry-delay 1 --retry-all-errors "$1" | python3 -c '
@@ -486,4 +532,5 @@ else
   check_ncdot_domains
   check_ohio_jurisdiction
   check_nh_legend
+  check_delaware_maint
 fi
