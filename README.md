@@ -10,7 +10,7 @@ road-ownership dataset and pretending otherwise would be a promise the data cann
 |---|---|---|
 | County | Maricopa County, AZ | Everything: owner, project, plat, declaration, pavement, parcels |
 | City | Dallas, San Antonio, and the Rio Grande Valley — Arlington, Brownsville, Denver, Edinburg, Irving, Laredo, McAllen, Pharr, Weslaco | The city's own street record: who maintains it, what was last done to it and when, pavement and condition. Edinburg names the contractor and what it spent |
-| State | Arizona (statewide, every road named), North Carolina, Pennsylvania, Louisiana, Texas | Name, owner, construction and improvement year where the state publishes one. In Texas, the full construction register on the state system: every project back to 1970 with cost, and the contractor on live work |
+| State | Arizona, Louisiana, Massachusetts, North Carolina, Ohio, Pennsylvania, Texas, Virginia | Name and who is responsible, statewide. Construction or improvement dates where the state publishes them — Texas carries a full project register back to 1970 with cost, North Carolina 473,000 improvement dates |
 | National | Everywhere in the US | Street name from Census TIGER/Line, ownership if the road is on the National Highway System, a build year if you are on a bridge |
 
 Adding a state is an edit to `Sources/RoadCore/Resources/coverage.json`, not a code change — so

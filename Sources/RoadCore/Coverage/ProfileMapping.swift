@@ -135,6 +135,10 @@ public enum ProfileMapping {
             kind = feature[rule.field].text.flatMap { CodeTables.owner(ohio: $0) }
         } else if rule.table == .txdotAdmin {
             kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(txdot: $0) }
+        } else if rule.table == .dallasMaintenance {
+            // Missing until now. Unlike the switch in `owner(_:_:)` this chain is not checked
+            // for exhaustiveness, so a rule naming this table yielded no owner and no error.
+            kind = CodeTables.owner(dallas: feature[rule.field].text)
         }
         guard let kind else { return nil }
         // The code gave the level; a name field, where the layer has one, gives the body.

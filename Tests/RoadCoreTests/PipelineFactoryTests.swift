@@ -12,10 +12,12 @@ private let eastBatonRouge = Jurisdiction(stateFIPS: "22", countyFIPS: "22033",
                                           countyName: "East Baton Rouge Parish")
 private let harris = Jurisdiction(stateFIPS: "48", countyFIPS: "48201",
                                   countyName: "Harris County", placeName: "Houston city")
-/// Wyoming has no profile, so this is the current example of the national floor. It has been
-/// Texas and then Massachusetts before now; each stopped qualifying by being mapped.
-private let laramie = Jurisdiction(stateFIPS: "56", countyFIPS: "56021",
-                                   countyName: "Laramie County", placeName: "Cheyenne city")
+/// Puerto Rico, as the example of the national floor. This has been Texas, then Massachusetts,
+/// then Wyoming, and each stopped qualifying by being mapped — with every state eventually in
+/// the catalog there would be none left to point at. `Jurisdiction.stateNames` knows the
+/// territories and the catalog will not hold one.
+private let sanJuan = Jurisdiction(stateFIPS: "72", countyFIPS: "72127",
+                                   countyName: "San Juan Municipio")
 
 private func ids(_ jurisdiction: Jurisdiction?) -> [String] {
     PipelineFactory().pipeline(for: jurisdiction).sources.map(\.id)
@@ -78,10 +80,10 @@ struct PipelineFactoryTests {
 
     @Test("An unmapped county falls to the national tier alone")
     func unmappedCounty() {
-        // Wyoming is not in the catalog. The app must still name the road rather than going
-        // silent, and must say plainly that nothing local is mapped.
-        #expect(ids(laramie) == national)
-        let coverage = PipelineFactory().pipeline(for: laramie).coverage
+        // Puerto Rico is not in the catalog. The app must still name the road rather than
+        // going silent, and must say plainly that nothing local is mapped.
+        #expect(ids(sanJuan) == national)
+        let coverage = PipelineFactory().pipeline(for: sanJuan).coverage
         #expect(coverage.level == .national)
         #expect(coverage.profileNames.isEmpty)
     }
