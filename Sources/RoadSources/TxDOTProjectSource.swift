@@ -82,8 +82,15 @@ public struct TxDOTProjectSource: RoadSource {
         }.map(\.0)
 
         let provenance = provenance(url: url, fetchedAt: now())
+        // A control section is drawn as several features, so one project appears more than
+        // once in an envelope. Listing it twice reads as two separate jobs in the same year.
+        var seen = Set<String>()
         let works = onThisRoad.compactMap { Self.work(from: $0, now: now()) }
             .sorted { ($0.letDate ?? .distantPast) > ($1.letDate ?? .distantPast) }
+            .filter { work in
+                guard let number = work.projectNumber else { return true }
+                return seen.insert(number).inserted
+            }
         guard !works.isEmpty else {
             fragment.notes = [note(.foundNothing, "TxDOT records no project on this stretch.")]
             return fragment
@@ -179,9 +186,21 @@ public struct TxDOTProjectSource: RoadSource {
             detail: detail == "Legacy" ? nil : detail,
             location: limits(feature),
             letDate: let_,
-            cost: feature["EST_CONSTRUCTION_COST"].double.flatMap { $0 > 0 ? $0 : nil },
+            cost: feature["EST_CONSTRUCTION_COST"].double.flatMap { Self.realCost($0) },
             kind: CodeTables.workKind(txdot: projectClass),
             isPlanned: let_.map { $0 > now } ?? false)
+    }
+
+    /// Placeholder amounts, discarded rather than shown.
+    ///
+    /// 429 projects carry exactly `1`, and another 25 sit below a hundred dollars — `0.01`,
+    /// `0.66`, `2`, `42`. No road project costs a dollar, and "Widen Non-Freeway $1" reads as
+    /// a bug in the app rather than a gap in the register. 454 of 73,085, so the floor costs
+    /// nothing real.
+    static let costFloor: Double = 100
+
+    static func realCost(_ amount: Double) -> Double? {
+        amount >= costFloor ? amount : nil
     }
 
     /// "0.1 MI SOUTH OF RM 2243 to 0.21 MI NORTH OF RM 2243", as the agency wrote it.

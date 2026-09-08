@@ -9,7 +9,7 @@ road-ownership dataset and pretending otherwise would be a promise the data cann
 | Tier | Where | What you get |
 |---|---|---|
 | County | Maricopa County, AZ | Everything: owner, project, plat, declaration, pavement, parcels |
-| City | Dallas, San Antonio, and the Rio Grande Valley — Brownsville, Edinburg, Pharr, Weslaco | The city's own street record: who maintains it, what was last done to it and when, pavement and condition. Edinburg names the contractor and what it spent |
+| City | Dallas, San Antonio, and the Rio Grande Valley — Brownsville, Edinburg, McAllen, Pharr, Weslaco | The city's own street record: who maintains it, what was last done to it and when, pavement and condition. Edinburg names the contractor and what it spent |
 | State | Arizona, Pennsylvania, Louisiana, Texas | Name, owner, construction and improvement year where the state publishes one. In Texas, the full construction register on the state system: every project back to 1970 with cost, and the contractor on live work |
 | National | Everywhere in the US | Street name from Census TIGER/Line, ownership if the road is on the National Highway System, a build year if you are on a bridge |
 

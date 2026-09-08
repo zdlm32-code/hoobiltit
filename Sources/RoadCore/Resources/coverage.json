@@ -414,6 +414,35 @@
       },
       "_comment": "8581 centrelines for the largest Rio Grande Valley city, carrying a name and a STREET_USE and no ownership or dates. The thinnest profile shipped, and it earns its place only because Brownsville's own naming beats TIGER's inside the city. NAME is the full form ('E ELIZABETH ST') and UNIQUE_NM is the bare stem ('ELIZABETH'), so the order matters. The layer answers spatial queries but returns nothing for an attribute-only one, which is harmless here because every query this app makes is an envelope.",
       "dateCaveat": "Brownsville publishes a street centreline only: no ownership and no dates."
+    },
+    "4845384": {
+      "id": "tx.mcallen.annexation",
+      "displayName": "City of McAllen annexation history",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services3.arcgis.com/feieT9DHJD3rMLX7/arcgis/rest/services/Annexation_History_11_13_2024/FeatureServer",
+      "layer": 0,
+      "matching": "containsPoint",
+      "outFields": [
+        "Ord_no",
+        "Annex_Date",
+        "Year",
+        "Type"
+      ],
+      "fields": {
+        "annexationOrdinance": "Ord_no",
+        "annexationDate": "Annex_Date",
+        "yearEncoding": "epochMilliseconds",
+        "nullStrings": [
+          "",
+          " ",
+          "N/A",
+          "NONE",
+          "TBD"
+        ]
+      },
+      "_comment": "346 annexation tracts covering the city, Year 1927-2023, Annex_Date on 337 and Ord_no on 340 (the oldest reads CHARTER). McAllen is the largest Rio Grande Valley city and publishes no street inventory, no pavement layer and no capital-project register; its Subdivision_Master carries a Developer name but holds only 40 polygons, too few to be worth a profile. Annexation is not a construction date and the app never shows it as one - it renders in the paper trail beside the plat - but it bounds when the streets in a tract could have gone in, and it is the only dated fact the city publishes. Annex_Date is negative epoch milliseconds before 1970, which the accessor handles.",
+      "dateCaveat": "McAllen publishes no street or project records; what is shown is when the city annexed the land, which is not when the road was built."
     }
   }
 }

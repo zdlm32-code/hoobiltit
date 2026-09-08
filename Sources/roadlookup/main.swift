@@ -119,7 +119,8 @@ if let plat = record.plat {
     show("  plat document", plat.value.recorderURL?.absoluteString, nil)
 }
 if let a = record.annexation?.value {
-    show("annexed by ord.", a.ordinance, record.annexation)
+    let when = a.ordinanceDate.map { " (\(ymd($0)))" } ?? ""
+    show("annexed by ord.", (a.ordinance ?? "annexed") + when, record.annexation)
     show("  ordinance PDF", a.ordinanceURL?.absoluteString, nil)
 }
 if CommandLine.arguments.contains("--request") {

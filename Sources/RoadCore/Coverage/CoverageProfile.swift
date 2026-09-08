@@ -105,6 +105,11 @@ public struct FieldMapping: Sendable, Codable, Hashable {
     public var workDetail: String?
     public var workCost: String?
     public var workContractor: String?
+    /// When a city took the land in. Not a construction date and never shown as one — it
+    /// appears in the paper trail beside the plat and the right-of-way — but where a city
+    /// publishes nothing else it is the one dated fact bounding when the streets went in.
+    public var annexationOrdinance: String?
+    public var annexationDate: String?
     /// Pavement, as a city layer publishes it. Assembled into one `SurfaceDescription`, which
     /// already carries a type, a width, a plain-English rating and a 0-100 index because
     /// Maricopa publishes all four.

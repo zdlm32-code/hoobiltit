@@ -67,6 +67,10 @@ struct TxDOTProjectTests {
         #expect(dates == dates.sorted(by: >), "newest first")
         // Fifty years of it, which is the point.
         #expect(CalendarDate.year(try #require(dates.last)) == 1984)
+        // A control section is drawn as several features, so one project can come back more
+        // than once in an envelope; listed twice it reads as two separate jobs in one year.
+        let numbers = works.compactMap(\.projectNumber)
+        #expect(numbers.count == Set(numbers).count, "no project is listed twice")
     }
 
     /// The regression this source's tight gate exists for.

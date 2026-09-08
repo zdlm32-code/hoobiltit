@@ -1485,6 +1485,38 @@ Its layer is id `1`, not `0`. Its rows are named `PROJECT 1 - BUILDING & FACILIT
 centroids are at **-98.147, 26.243 — in Edinburg, sixty kilometres from Harlingen**. Wired up it
 would have put invented projects on real Edinburg streets.
 
+### McAllen publishes no roads, so it is read for annexation instead
+
+```
+https://services3.arcgis.com/feieT9DHJD3rMLX7/arcgis/rest/services/Annexation_History_11_13_2024/FeatureServer/0
+```
+
+The largest RGV city publishes **no street inventory, no pavement layer and no project
+register**. `Subdivision_Master` carries a `Developer` name — the most direct answer to the
+app's question anywhere — but holds **40 polygons**, too few to be worth a profile.
+
+What it does publish is 346 annexation tracts covering the city, `Year` 1927-2023, with an
+ordinance number on 340 (the oldest reads `CHARTER`). **Annexation is not construction**, and
+the app never shows it as such: it renders in the paper trail beside the plat and the
+right-of-way, and the profile's caveat says so outright. But it bounds when the streets in a
+tract could have gone in, and it is the only dated thing the city publishes.
+
+`Annex_Date` is **negative** epoch milliseconds before 1970 — `-1354335476724` is January 1927.
+Read as unsigned it would be a date in the far future.
+
+### Two sentinels found by shipping
+
+**A dollar is not a cost.** 429 TxDOT projects carry `EST_CONSTRUCTION_COST = 1`, and another 25
+sit below a hundred dollars: `0.01`, `0.66`, `2`, `42`. A McAllen pin duly rendered *"Widen
+Non-Freeway $1"*, which reads as a bug in the app rather than a gap in the register. The floor is
+$100 and costs nothing real — 454 of 73,085.
+
+**A project drawn twice is still one project.** A control section is published as several
+features, so an envelope returns the same CSJ more than once and the register listed it twice,
+reading as two separate jobs in the same year. Deduplicated on the control-section-job number.
+Note that genuinely distinct projects *do* share a title and a year — a McAllen pin sits on four
+separate `Widen Non-Freeway` CSJs let in 2040 — so the key has to be the number, not the text.
+
 ### Undated work is not work
 
 Pharr records a `MAINTENANCE_REPAIRS` treatment on segments with no `Repave_Date`, and the first

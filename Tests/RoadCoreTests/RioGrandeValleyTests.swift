@@ -131,6 +131,36 @@ struct RioGrandeValleyTests {
         #expect(profile.fields?.ownerNames?["UNINCORPOARTED"] == "")
     }
 
+    // MARK: - McAllen: annexation, the only dated thing it publishes
+
+    @Test("A city that publishes no roads still yields a dated fact, honestly labelled")
+    func mcallenAnnexation() async throws {
+        let transport = FixtureTransport(["Annexation_History_11_13_2024/FeatureServer/0":
+                                            .fixture("rgv_mcallen_annexation")])
+        let fragment = try await source("4845384", transport).fetch(
+            RoadQuery(latitude: 26.2034, longitude: -98.2300))
+        let annexation = try #require(fragment.annexation?.value)
+        #expect(annexation.ordinance == "CHARTER")
+        // 1927, which is a *negative* epoch in milliseconds. Read as unsigned it would be a
+        // date in the far future.
+        let when = try #require(annexation.ordinanceDate)
+        #expect(CalendarDate.year(when) == 1927)
+        #expect(when < Date(timeIntervalSince1970: 0))
+        // Annexation is not construction, and nothing here claims it is.
+        #expect(fragment.yearLastConstruction == nil)
+        #expect(fragment.works == nil)
+    }
+
+    @Test("A placeholder cost never reaches the card")
+    func costFloor() {
+        // 429 TxDOT projects carry exactly $1 and another 25 sit below $100 — 0.01, 0.66, 2,
+        // 42. "Widen Non-Freeway $1" reads as a bug in the app, not a gap in the register.
+        #expect(TxDOTProjectSource.realCost(1) == nil)
+        #expect(TxDOTProjectSource.realCost(0.66) == nil)
+        #expect(TxDOTProjectSource.realCost(42) == nil)
+        #expect(TxDOTProjectSource.realCost(1_026_662) == 1_026_662)
+    }
+
     // MARK: - Catalog
 
     @Test("Every Rio Grande Valley profile is reachable and HTTPS")
@@ -141,6 +171,7 @@ struct RioGrandeValleyTests {
             #expect(profile != nil, "\(geoid) did not survive the read")
         }
         #expect(catalog.profile(forCounty: "48061")?.id == "tx.cameron.roads")
+        #expect(catalog.profile(forPlace: "4845384")?.id == "tx.mcallen.annexation")
         // Harlingen was probed and deliberately not shipped: its capital-project layer is a
         // template whose rows read "PROJECT 1 - BUILDING & FACILITIES", all share one end
         // date, and sit in Edinburg rather than Harlingen.

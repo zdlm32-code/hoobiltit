@@ -154,7 +154,7 @@ public enum ProfileMapping {
                         location: text(feature, mapping.workLocation.map { [$0] }, mapping)
                             ?? crossStreets(feature, mapping),
                         letDate: when,
-                        cost: number(feature, mapping.workCost, mapping).flatMap { $0 > 0 ? $0 : nil },
+                        cost: number(feature, mapping.workCost, mapping).flatMap { $0 >= 100 ? $0 : nil },
                         contractor: text(feature, mapping.workContractor.map { [$0] }, mapping),
                         kind: kind,
                         // A city's project register carries work that has not happened yet,
@@ -204,6 +204,15 @@ public enum ProfileMapping {
         }
         if fragment.trafficCount == nil, let aadt = number(feature, mapping.aadt, mapping), aadt > 0 {
             fragment.trafficCount = Attributed(Int(aadt), provenance: provenance, confidence: confidence)
+        }
+        if fragment.annexation == nil {
+            let ordinance = text(feature, mapping.annexationOrdinance.map { [$0] }, mapping)
+            let when = date(feature, mapping.annexationDate, mapping)
+            if ordinance != nil || when != nil {
+                fragment.annexation = Attributed(
+                    AnnexationReference(ordinance: ordinance, ordinanceDate: when),
+                    provenance: provenance, confidence: confidence)
+            }
         }
         if fragment.surface == nil, let surface = surface(feature, mapping) {
             fragment.surface = Attributed(surface, provenance: provenance, confidence: confidence)
