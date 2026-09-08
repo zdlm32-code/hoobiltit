@@ -637,6 +637,12 @@ publishes both**: `ProjectTracker_AGO` names the construction company on 7,542 p
 way, and the DCIS register carries an estimated construction cost on 73,085 of 73,306 projects
 (§10.2c). What follows remains true of the other thirteen states probed, and of Maricopa County.
 
+TxDOT also publishes a **spending ledger** — `ProjectTracker_AGO` layer 2, 76,617 rows keyed on
+the CSJ and split by category. Filtering to `SPENDING_CAT = 'CNST'` gives what has actually been
+paid out on construction as opposed to estimated: $9,839,558 spent against a $36,728,295 estimate
+on CSJ 025809147, with `ORION CONSTRUCTION, LLC` named as the builder. `PE` and `ROW` rows are
+design and land and are deliberately not summed into it.
+
 Note the limits even where it works. The Texas figure is the *estimate*, not the awarded amount,
 and the contractor is published only while a job is live — a road built in 1988 still has no
 company against it. So the records request below is still the route to an awarded figure, and
@@ -1348,3 +1354,79 @@ logic.
 The level is set by the pipeline factory, never by a source — only the factory can tell *no
 source is mapped here* from *a source is mapped and found nothing*, and that distinction is the
 entire content of the sentence the card shows.
+
+---
+
+## 14. The city tier — two Texas cities, and why not the other two
+
+Off the state system TxDOT publishes nothing dated: 427,315 city-street and 302,900 county
+segments carry owner, class and traffic and no year. Four Texas cities were probed for their own
+street records. **Two publish something worth reading and two publish nothing.**
+
+### Dallas — the best local-street source found anywhere
+
+```
+https://services2.arcgis.com/rwnOSbfKSwyTBcwN/arcgis/rest/services/PavementCondition/FeatureServer/0
+```
+
+38,564 "supersegments". `rehab_year` on **27,588 (71.5%) across 95 distinct years with no
+dominant value** — the largest is 2024 at 8.4%, which is what a real distribution looks like and
+exactly what San Antonio's is not. Also `name`, `from_name`/`to_name`, `descr`
+("18400-18500 TIMBER OAKS DR"), `maint_resp`, `func_class`, `pave_type`, `width_ft`,
+`blend_pci`/`blend_cond`, and `repair_cost`.
+
+`rehab_type` is a **21-value vocabulary** and does the same job `PROJ_CLASS` does for the state:
+`Street Reconstruction` (6,577) and `Panel Replace` build, `Slurry Seal` (6,549),
+`Microsurfacing`, `Onyx` and `Mill/Overlay` maintain, and `None` (11,007) means no recorded work
+rather than an unknown kind. Decoded by `CodeTables.workKind(dallas:)`.
+
+`maint_resp` names a *level* — `City` on 38,471 of 38,564, plus `State`, `State Shared`,
+`County Shared`, `City - Park` — so it gets its own table rather than `owner(named:)`, which
+would render a Dallas freeway as "maintained by State".
+
+### San Antonio — where the dates are almost all fake
+
+```
+https://services.arcgis.com/g1fRTDLeMgspWrYp/arcgis/rest/services/Pavements/FeatureServer/0
+```
+
+98,986 segments, and **`InstallDate` is populated on every single one** — which is the trap.
+**96% of it is two placeholders**: `2000-01-01` on 49,782 rows (50.3%) and `1980-01-01` on
+45,272 (45.7%), leaving **3,932 real dates**. Mapped at face value the app would invent a
+construction year for nearly every street in the city. Both epoch values go in `nullNumbers`,
+the same mechanism PennDOT's `YR_BUILT = 0` needed.
+
+What *is* real is `Owner`, 43 values naming the body: San Antonio (51,612), Bexar County
+(14,815), TxDOT (11,628), **Private (11,017)**, Ft Sam Houston, Lackland AFB, Randolph AFB,
+Port Authority of San Antonio. `Surface_Type` is `TBD` on 42,576 rows, hence `nullStrings`.
+Read by `CodeTables.owner(named:)`, which classifies by shape — a trailing "County", a trailing
+"AFB", a leading "Camp " — because the list is a register of every municipality and installation
+in a metro area and will grow.
+
+### Houston and Austin publish nothing dated
+
+- **Houston** `COH_RoadCenterline` — 235,765 segments with names, no construction dates. Its
+  project layers hold **17** and **6** features.
+- **Austin** `TRANSPORTATION_street_segment` — `CREATED_DATE` and `MODIFIED_DATE` are GIS record
+  metadata, not road facts. No pavement or construction year.
+
+The card names the covered cities for this reason, so a Houston user reads it as a gap in the
+source rather than a fault in the app.
+
+### Keyed on place, and running first
+
+Coverage is keyed on the **seven-digit Census place GEOID** — `4819000` Dallas, `4865000` San
+Antonio — which `Jurisdiction` already carried and nothing read. Not on county FIPS: **the City
+of Dallas spans five counties** (Dallas, Denton, Collin, Rockwall, Kaufman) and the test pin used
+here falls in Denton.
+
+The city tier runs **before** the state tier, which is the opposite of the state-before-county
+rule in §13. TxDOT files every city street for HPMS and reads them all as "city or municipal
+highway agency"; San Antonio marks 11,017 of them **Private**. Running second would lose that on
+every street TxDOT also carries, which is nearly all of them. The rule this imposes on a city
+profile: **it must report state and county roads correctly, or not map ownership at all.** Both
+shipped cities do.
+
+A city contributes at `CoverageLevel.county`, deliberately without a level of its own:
+`CoverageLevel`'s `Comparable` reads a hardcoded array through a force-unwrapped `firstIndex`, so
+a case missing from that array is a crash rather than a compile error.

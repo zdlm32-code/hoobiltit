@@ -23,6 +23,19 @@ public struct CoverageCatalog: Sendable, Codable {
     public var states: [String: CoverageProfile]
     /// Keyed by five-digit county FIPS. Wins over the state entry where both apply.
     public var counties: [String: CoverageProfile]
+    /// Keyed by seven-digit Census place GEOID — two-digit state FIPS plus five-digit place,
+    /// e.g. `4819000` Dallas, `4865000` San Antonio.
+    ///
+    /// A place rather than a county because a city is not contained by one: the City of Dallas
+    /// spans **five** counties, and the pin used to test it falls in Denton, not Dallas. Keyed
+    /// on county this would need five identical copies and would still be wrong at the edges.
+    ///
+    /// Optional, and read through `placeProfiles`, for the reason `minSchema` is optional: a
+    /// synthesized `Decodable` throws on a missing key rather than using a property's default,
+    /// and `bundled` turns any decode failure into an empty catalog. A non-optional here would
+    /// mean a catalog written before this field existed silently drops every jurisdiction in
+    /// the country to the national tier.
+    public var places: [String: CoverageProfile]?
 
     /// Entries this build can actually read.
     ///
@@ -36,6 +49,13 @@ public struct CoverageCatalog: Sendable, Codable {
     public func profile(forCounty fips: String) -> CoverageProfile? {
         usable(counties[fips])
     }
+
+    public func profile(forPlace geoid: String) -> CoverageProfile? {
+        usable(placeProfiles[geoid])
+    }
+
+    /// Defaults applied on read rather than at decode. See `places`.
+    public var placeProfiles: [String: CoverageProfile] { places ?? [:] }
 
     private func usable(_ profile: CoverageProfile?) -> CoverageProfile? {
         guard let profile, profile.requiredSchema <= Self.supportedSchema else { return nil }

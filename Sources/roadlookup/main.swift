@@ -50,7 +50,7 @@ if let s = record.surface {
     let v = s.value
     let parts = [v.type,
                  (v.depthInches ?? 0) > 0 ? "\(v.depthInches!)\" over \(v.baseType ?? "unknown base")" : nil,
-                 v.laneCount.map { "\($0) lanes" }, v.conditionRating.map { "condition \($0.lowercased())" }]
+                 v.laneCount.map { "\($0) lanes" }, v.conditionPhrase]
     show("surface", parts.compactMap { $0 }.joined(separator: ", "), s)
 }
 show("last constructed", record.yearLastConstruction.map { ymd($0.value) }, record.yearLastConstruction)
@@ -73,11 +73,22 @@ if let b = record.bridge {
     show("structure", [v.crosses.map { "over \($0)" }, years.isEmpty ? nil : years].compactMap { $0 }.joined(separator: " — "), b)
     show("  owner", v.ownerDescription, nil)
 }
+if let w = record.works {
+    show("work recorded", "\(w.value.count) entr\(w.value.count == 1 ? "y" : "ies")", w)
+    for entry in w.value.prefix(25) {
+        let year = entry.letDate.map { String(CalendarDate.year($0)) } ?? "undated"
+        let cost = entry.cost.map { " \($0.formatted(.currency(code: "USD").precision(.fractionLength(0))))" } ?? ""
+        let planned = entry.isPlanned ? " (planned)" : ""
+        print("    \(year)  \(entry.title)\(cost)\(planned)  [\(entry.kind.rawValue)]")
+    }
+}
 if let f = record.funding {
     let v = f.value
     let parts = [v.programmedAmount.map { $0.formatted(.currency(code: "USD").precision(.fractionLength(0))) },
                  v.fiscalYear, v.leadAgency.map { "lead \($0)" },
-                 v.inServiceDate.map { "opened \(ymd($0))" }].compactMap { $0 }
+                 v.inServiceDate.map { "opened \(ymd($0))" },
+                 v.actualSpend.map { "spent \($0.formatted(.currency(code: "USD").precision(.fractionLength(0))))" },
+                 v.contractor.map { "built by \($0)" }].compactMap { $0 }
     show("programmed cost", parts.joined(separator: ", "), f)
 }
 if let pc = record.parcel {

@@ -19,6 +19,8 @@ LADOTD="https://gis.dotd.la.gov/road/rest/services/Roads_and_Highways_OpenData/M
 TXINV="https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadway_Inventory/FeatureServer/0"
 TXRDS="https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadways/FeatureServer/0"
 TXDCIS="https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_DCIS_All_Projects/FeatureServer/0"
+DALPAV="https://services2.arcgis.com/rwnOSbfKSwyTBcwN/arcgis/rest/services/PavementCondition/FeatureServer/0"
+SAPAV="https://services.arcgis.com/g1fRTDLeMgspWrYp/arcgis/rest/services/Pavements/FeatureServer/0"
 
 # Named test pins from docs/ENDPOINTS.md §8 (bash 3.2 has no associative arrays)
 PIN_NAMES="lonemountain goodyear i10 suncity williams mc85 mcdowell"
@@ -247,6 +249,64 @@ print(";".join(f"{c}={n}" for c,n in sorted(new,key=lambda t:-t[1])) if new else
   echo
 }
 
+# San Antonio publishes InstallDate on 100% of its 98,986 segments and 96% of it is placeholder:
+# 2000-01-01 and 1980-01-01. Both are in the profile's nullNumbers. If the city ever backfills
+# real dates the share drops and those filters start discarding facts instead of noise -- which
+# no test can see, because the fixtures are frozen.
+check_sanantonio_sentinels() {
+  echo "=== San Antonio InstallDate placeholders (ENDPOINTS.md 14)"
+  local share
+  share=$(curl -s -m 90 "$SAPAV/query?where=1%3D1&groupByFieldsForStatistics=InstallDate&outStatistics=%5B%7B%22statisticType%22%3A%22count%22%2C%22onStatisticField%22%3A%22OBJECTID%22%2C%22outStatisticFieldName%22%3A%22n%22%7D%5D&returnGeometry=false&f=json" \
+    | python3 -c '
+import json,sys,datetime
+try: d=json.load(sys.stdin)
+except Exception: print("err"); raise SystemExit
+if "error" in d: print("err"); raise SystemExit
+tot=sent=0
+for f in d.get("features",[]):
+    v=f["attributes"]["InstallDate"]; n=f["attributes"]["n"]; tot+=n
+    if v is None: continue
+    iso=datetime.datetime.fromtimestamp(v/1000,datetime.UTC).date().isoformat()
+    if iso in ("2000-01-01","1980-01-01"): sent+=n
+print(f"{100*sent/tot:.1f}" if tot else "err")')
+  echo "  placeholder share -> ${share:-?}%"
+  case "$share" in
+    err|"") echo "  INCONCLUSIVE: the request failed; re-run before drawing any conclusion." ;;
+    9[0-9].*|100*) echo "  OK: still overwhelmingly placeholder; the nullNumbers filter is earning its keep." ;;
+    *) echo "  CHANGED: the share moved. San Antonio may have backfilled real dates -- re-read ENDPOINTS.md 14." ;;
+  esac
+  echo
+}
+
+# Dallas rehab_type decides whether a street was rebuilt or merely sealed, and the app ships that
+# vocabulary. An unrecognised value falls through to "maintained", so a new *construction* class
+# would quietly stop counting as one.
+check_dallas_rehab_types() {
+  echo "=== Dallas rehab_type vocabulary (ENDPOINTS.md 14)"
+  local unknown
+  unknown=$(curl -s -m 90 "$DALPAV/query?where=1%3D1&groupByFieldsForStatistics=rehab_type&outStatistics=%5B%7B%22statisticType%22%3A%22count%22%2C%22onStatisticField%22%3A%22OBJECTID%22%2C%22outStatisticFieldName%22%3A%22n%22%7D%5D&returnGeometry=false&f=json" \
+    | python3 -c '
+import json,sys,re
+try: d=json.load(sys.stdin)
+except Exception: print("err"); raise SystemExit
+if "error" in d: print("err"); raise SystemExit
+build=re.compile(r"RECONSTRUCT|PANEL REPLACE|REPLACE|WIDEN|FULL.?DEPTH|RESTORATION",re.I)
+maint=re.compile(r"SEAL|OVERLAY|MICROSURF|ONYX|PATCH|CRACK|SURFACE|MILL|NONE|ALLEY|AOC",re.I)
+new=[(f["attributes"]["rehab_type"],f["attributes"]["n"]) for f in d.get("features",[])
+     if f["attributes"]["rehab_type"]
+     and not build.search(f["attributes"]["rehab_type"])
+     and not maint.search(f["attributes"]["rehab_type"])
+     and f["attributes"]["n"]>=100]
+print(";".join(f"{c}={n}" for c,n in sorted(new,key=lambda t:-t[1])) if new else "none")')
+  echo "  unclassified types over 100 segments -> ${unknown:-?}"
+  case "$unknown" in
+    none) echo "  OK: every high-volume rehab_type matches a shipped rule." ;;
+    err)  echo "  INCONCLUSIVE: the request failed; re-run before drawing any conclusion." ;;
+    *)    echo "  CHECK: decide whether these rebuilt a street, and update CodeTables." ;;
+  esac
+  echo
+}
+
 # Feature count for a query URL, or the string "err" if the request did not come back.
 count() {
   curl -s -m 25 --retry 3 --retry-delay 1 --retry-all-errors "$1" | python3 -c '
@@ -272,4 +332,6 @@ else
   check_penndot_codes
   check_txdot_codes
   check_txdot_project_classes
+  check_sanantonio_sentinels
+  check_dallas_rehab_types
 fi

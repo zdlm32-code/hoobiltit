@@ -23,6 +23,7 @@ struct JurisdictionTests {
         #expect(found.countyFIPS == "48201")
         #expect(found.countyName == "Harris County")
         #expect(found.placeName == "Houston city")
+        #expect(found.placeGEOID == "4835000", "the key the city tier is routed on")
         #expect(found.description == "Harris County, Texas")
     }
 
@@ -64,6 +65,26 @@ struct JurisdictionTests {
         let again = try #require(await subject.locate(downTheRoad))
         #expect(again.countyFIPS == "48201")
         #expect(await subject.requestCount == 1, "no second request")
+    }
+
+    @Test("The place is re-resolved when you leave it, not held for the whole drive")
+    func placeStaysFresh() async throws {
+        let subject = locator(harrisTransport)
+        let first = try #require(await subject.locate(houston))
+        #expect(first.placeGEOID == "4835000")
+        #expect(await subject.requestCount == 1)
+
+        // Inside Houston's boundary: still one request, because the place polygon answers
+        // containment locally exactly as the county's does.
+        _ = await subject.locate(Coordinate(latitude: 29.7874, longitude: -95.3698))
+        #expect(await subject.requestCount == 1)
+
+        // Pasadena: outside Houston's boundary and **inside** Harris County's, so the county
+        // fast path is still taken and only the place has changed. Before this the locator
+        // returned the jurisdiction it was holding, so the drive card kept naming Houston for
+        // the rest of the drive whichever suburb you were actually in.
+        _ = await subject.locate(Coordinate(latitude: 29.6911, longitude: -95.2091))
+        #expect(await subject.requestCount == 2, "leaving the city costs one lookup")
     }
 
     @Test("Leaving the county's boundary triggers exactly one refetch")

@@ -36,6 +36,29 @@ public struct PipelineFactory: Sendable {
         var level = CoverageLevel.national
 
         if let jurisdiction {
+            // A city's own street inventory outranks the state's copy of it. TxDOT files every
+            // city street for HPMS and reads them all as "city or municipal highway agency",
+            // while San Antonio names the actual owner and marks 11,017 segments **Private**.
+            // Running the city second would lose that on every street TxDOT also carries,
+            // which is nearly all of them.
+            //
+            // The rule this imposes on a city profile: it must report state and county roads
+            // correctly, or not map ownership at all. Both shipped cities do — San Antonio
+            // writes "TxDOT", Dallas writes "State" and `dallasMaintenance` spells it out.
+            //
+            // Deliberately at `.county` level rather than a level of its own:
+            // `CoverageLevel.Comparable` reads a hardcoded array through a force-unwrapped
+            // `firstIndex`, so a case missing from it crashes on the first comparison.
+            if let place = jurisdiction.placeGEOID,
+               let city = catalog.profile(forPlace: place) {
+                let built = self.sources(for: city)
+                if !built.isEmpty {
+                    sources += built
+                    names.append(city.displayName)
+                    city.dateCaveat.map { caveats.append($0) }
+                    level = max(level, .county)
+                }
+            }
             if let state = catalog.profile(forState: jurisdiction.stateFIPS) {
                 let built = self.sources(for: state)
                 if !built.isEmpty {

@@ -622,6 +622,13 @@ public struct ResultScreen: View {
         if let opened = funding.inServiceDate {
             parts.append("opened \(CalendarDate.medium(opened))")
         }
+        // Kept beside the estimate rather than replacing it: they answer different questions,
+        // and on a job still under way the spend is a running total, not a final figure.
+        if let spent = funding.actualSpend {
+            parts.append("spent so far "
+                + spent.formatted(.currency(code: "USD").precision(.fractionLength(0))))
+        }
+        if let contractor = funding.contractor { parts.append("built by \(contractor)") }
         return parts.isEmpty ? "Programmed" : parts.joined(separator: ", ")
     }
 }

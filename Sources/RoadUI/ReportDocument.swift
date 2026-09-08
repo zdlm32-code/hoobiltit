@@ -47,6 +47,9 @@ public enum ReportDocument {
             ("Estimated construction cost", record.funding?.value.programmedAmount.map {
                 $0.formatted(.currency(code: "USD").precision(.fractionLength(0)))
             }),
+            ("Actually spent on construction", record.funding?.value.actualSpend.map {
+                $0.formatted(.currency(code: "USD").precision(.fractionLength(0)))
+            }),
             ("Contractor", record.funding?.value.contractor),
         ])
 

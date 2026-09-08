@@ -71,14 +71,23 @@ public enum ProfileMapping {
     /// likeliest guess. An unrecognised code means the app does not know who owns this road,
     /// and `RoadOwner` has a case that says exactly that.
     public static func owner(_ feature: ArcGISFeature, _ mapping: FieldMapping) -> RoadOwner? {
-        guard let field = mapping.ownership,
-              let code = CodeTables.code(feature[field])
-        else { return nil }
+        guard let field = mapping.ownership else { return nil }
+        // Read before the numeric decode: this field holds "Bexar County", not a code, and
+        // `CodeTables.code` would take the leading digits of a name and invent an owner.
+        if mapping.ownershipTable == .dallasMaintenance {
+            return CodeTables.owner(dallas: feature[field].text)
+        }
+        if mapping.ownershipTable == .namedAgency {
+            guard let text = feature[field].text, !mapping.isNull(text) else { return nil }
+            return CodeTables.owner(named: text)
+        }
+        guard let code = CodeTables.code(feature[field]) else { return nil }
         switch mapping.ownershipTable {
         case .hpmsOwnership:        return CodeTables.owner(hpms: code)
         case .penndotJurisdiction:  return CodeTables.owner(penndot: code)
         case .txdotAdmin:           return CodeTables.owner(txdot: code)
-        case .fhwaFunctionalClass, .none: return nil
+        case .fhwaFunctionalClass, .dallasRehabType, .namedAgency, .dallasMaintenance, .none:
+            return nil
         }
     }
 
@@ -92,6 +101,50 @@ public enum ProfileMapping {
         }
         guard let code = CodeTables.code(feature[field]) else { return nil }
         return CodeTables.functionalClass[code]
+    }
+
+    /// Pavement as a city layer publishes it.
+    ///
+    /// Requires a type: a bare condition score with nothing it describes is not worth a row on
+    /// the card, and `SurfaceDescription.type` is non-optional for that reason.
+    public static func surface(_ feature: ArcGISFeature, _ mapping: FieldMapping) -> SurfaceDescription? {
+        guard let field = mapping.surface, let type = feature[field].text,
+              !mapping.isNull(type)
+        else { return nil }
+        return SurfaceDescription(
+            type: type,
+            widthFeet: number(feature, mapping.widthFeet, mapping).map { Int($0) },
+            conditionIndex: number(feature, mapping.conditionIndex, mapping),
+            conditionRating: mapping.condition.flatMap { feature[$0].text }
+                .flatMap { mapping.isNull($0) ? nil : $0 })
+    }
+
+    /// The one dated job a city pavement layer records against a segment.
+    ///
+    /// Returns nil when the layer says no work was done, which is a real answer and not a gap:
+    /// Dallas writes `rehab_type = "None"` on 11,007 of its 38,564 segments.
+    public static func work(_ feature: ArcGISFeature, _ mapping: FieldMapping) -> RoadWork? {
+        guard mapping.workTypeTable == .dallasRehabType,
+              let typeField = mapping.workType,
+              let kind = CodeTables.workKind(dallas: feature[typeField].text),
+              let title = feature[typeField].text
+        else { return nil }
+        return RoadWork(title: title,
+                        location: text(feature, mapping.workLocation.map { [$0] }, mapping)
+                            ?? crossStreets(feature, mapping),
+                        letDate: date(feature, mapping.workYear, mapping),
+                        kind: kind)
+    }
+
+    /// Nil when both ends name the same street, which a cul-de-sac or a loop does: Dallas
+    /// writes `from_name == to_name` there, and "between Shadow Ridge Dr and Shadow Ridge Dr"
+    /// reads as a bug rather than as a dead end.
+    static func crossStreets(_ feature: ArcGISFeature, _ mapping: FieldMapping) -> String? {
+        guard let from = mapping.crossStreetFrom.flatMap({ feature[$0].text }),
+              let to = mapping.crossStreetTo.flatMap({ feature[$0].text }),
+              from != to
+        else { return nil }
+        return "\(from) to \(to)"
     }
 
     /// Applies everything a mapping describes onto a fragment.
@@ -125,11 +178,21 @@ public enum ProfileMapping {
         if fragment.trafficCount == nil, let aadt = number(feature, mapping.aadt, mapping), aadt > 0 {
             fragment.trafficCount = Attributed(Int(aadt), provenance: provenance, confidence: confidence)
         }
-        if fragment.crossStreets == nil,
-           let from = mapping.crossStreetFrom.flatMap({ feature[$0].text }),
-           let to = mapping.crossStreetTo.flatMap({ feature[$0].text }) {
-            fragment.crossStreets = Attributed("\(from) and \(to)", provenance: provenance,
-                                               confidence: confidence)
+        if fragment.surface == nil, let surface = surface(feature, mapping) {
+            fragment.surface = Attributed(surface, provenance: provenance, confidence: confidence)
+        }
+        if fragment.works == nil, let work = work(feature, mapping) {
+            fragment.works = Attributed([work], provenance: provenance, confidence: confidence)
+        }
+        if fragment.structureNumber == nil,
+           let number = mapping.structureNumber.flatMap({ feature[$0].text }),
+           !mapping.isNull(number) {
+            fragment.structureNumber = Attributed(number, provenance: provenance,
+                                                  confidence: confidence)
+        }
+        if fragment.crossStreets == nil, let pair = crossStreets(feature, mapping) {
+            fragment.crossStreets = Attributed(pair.replacingOccurrences(of: " to ", with: " and "),
+                                               provenance: provenance, confidence: confidence)
         }
     }
 }

@@ -50,10 +50,24 @@ public struct NBIBridgeSource: RoadSource {
         self.now = now
     }
 
+    /// A structure number with padding and separators removed, so two agencies' spellings of
+    /// the same bridge compare equal.
+    static func structureKey(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let stripped = raw.filter { $0.isLetter || $0.isNumber }
+            .drop { $0 == "0" }
+        return stripped.isEmpty ? nil : String(stripped).uppercased()
+    }
+
     public func fetch(_ query: RoadQuery, resolved: RoadRecord) async throws -> RoadFragment {
         var fragment = RoadFragment()
         let roadName = resolved.segmentName?.value ?? resolved.routeDesignation?.value
-        guard let roadName else {
+        // An upstream layer may already know the structure number, which is the same key NBI
+        // files a bridge under. TxDOT publishes it on 44,781 segments. With it there is no
+        // guessing left to do; without it, the name gate below is the only thing standing
+        // between a residential pin and a canal bridge four hundred metres away.
+        let structure = resolved.structureNumber?.value
+        guard roadName != nil || structure != nil else {
             fragment.notes = [note(.skipped, "No road identified yet, so a nearby structure "
                                              + "cannot be tied to it.")]
             return fragment
@@ -65,14 +79,23 @@ public struct NBIBridgeSource: RoadSource {
         let (features, url) = try await client.query(layer: layer, envelope: envelope,
                                                      returnGeometry: false)
 
-        // Gated on the road the structure carries. Without this a pin on a residential street
-        // would be told about a canal bridge four hundred metres away.
-        guard let feature = features.features.first(where: {
-            RoadName.matches($0["FACILITY_CARRIED_007"].text, roadName)
-        }) else {
+        // An exact key beats a name match, so it is tried first. NBI zero-pads its structure
+        // numbers and the roadway layers do not always agree on the padding, so both are
+        // compared with it stripped.
+        let exact = structure.flatMap { number in
+            features.features.first {
+                Self.structureKey($0["STRUCTURE_NUMBER_008"].text) == Self.structureKey(number)
+            }
+        }
+        // Otherwise gate on the road the structure carries. Without this a pin on a
+        // residential street would be told about a canal bridge four hundred metres away.
+        let byName = roadName.flatMap { name in
+            features.features.first { RoadName.matches($0["FACILITY_CARRIED_007"].text, name) }
+        }
+        guard let feature = exact ?? byName else {
             fragment.notes = [note(.foundNothing, features.isEmpty
                 ? "No bridge or structure near this point."
-                : "Structures nearby, but none carries \(roadName).")]
+                : "Structures nearby, but none carries \(roadName ?? "this road").")]
             return fragment
         }
 

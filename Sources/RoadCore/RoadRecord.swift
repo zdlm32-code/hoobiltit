@@ -89,6 +89,17 @@ public struct SurfaceDescription: Sendable, Hashable, Codable {
     /// 10,001 of 10,954 segments. Preferred over the raw index when showing a person.
     public let conditionRating: String?
 
+    /// The rating as a phrase, cased the way the agency's own vocabulary reads.
+    ///
+    /// Maricopa writes "Very Good", which belongs lowercased mid-sentence. Dallas writes a
+    /// letter grade, and "condition b" reads like a typo — a grade is a proper noun.
+    public var conditionPhrase: String? {
+        guard let conditionRating else { return nil }
+        let isLetterGrade = conditionRating.count <= 2
+            && conditionRating.allSatisfy { $0.isUppercase || $0 == "+" || $0 == "-" }
+        return "condition " + (isLetterGrade ? conditionRating : conditionRating.lowercased())
+    }
+
     public init(type: String, depthInches: Double? = nil, baseType: String? = nil,
                 baseDepthInches: Double? = nil, laneCount: Int? = nil,
                 widthFeet: Int? = nil, conditionIndex: Double? = nil,
@@ -170,11 +181,16 @@ public struct ProjectFunding: Sendable, Hashable, Codable {
     /// source does. TxDOT's Project Tracker does, on work currently under construction, so
     /// the claim was wrong rather than merely unlucky.
     public let contractor: String?
+    /// What the agency has actually paid out on construction, where it publishes a ledger.
+    ///
+    /// A different fact from `programmedAmount`, which is an estimate made before bidding, and
+    /// worth both: TxDOT estimated $8,402,902 on CSJ 001509194 and has spent $9,176,571.
+    public let actualSpend: Double?
 
     public init(programmedAmount: Double? = nil, fiscalYear: String? = nil,
                 leadAgency: String? = nil, region: String? = nil,
                 projectNumber: String? = nil, inServiceDate: Date? = nil,
-                contractor: String? = nil) {
+                contractor: String? = nil, actualSpend: Double? = nil) {
         self.programmedAmount = programmedAmount
         self.fiscalYear = fiscalYear
         self.leadAgency = leadAgency
@@ -182,6 +198,7 @@ public struct ProjectFunding: Sendable, Hashable, Codable {
         self.projectNumber = projectNumber
         self.inServiceDate = inServiceDate
         self.contractor = contractor
+        self.actualSpend = actualSpend
     }
 }
 
@@ -407,6 +424,9 @@ public struct RoadFragment: Sendable, Codable {
     /// blob and decodes it with `try?`, so an entry written before this field existed still
     /// decodes, with `works` nil, instead of being thrown away.
     public var works: Attributed<[RoadWork]>?
+    /// The NBI structure number, when a roadway layer publishes one for the segment. Not shown
+    /// on its own — it exists so the bridge source can join exactly rather than guess.
+    public var structureNumber: Attributed<String>?
     public var notes: [SourceNote] = []
 
     public init() {}
@@ -449,6 +469,8 @@ public struct RoadRecord: Sendable {
     public var project: Attributed<ProjectReference>?
     /// Every dated job the agency records on this stretch, newest first. See `RoadWork`.
     public var works: Attributed<[RoadWork]>?
+    /// The NBI structure number, when a roadway layer publishes one. See `RoadFragment`.
+    public var structureNumber: Attributed<String>?
 
     /// One entry per source consulted, including the ones that found nothing or failed.
     public var notes: [SourceNote] = []
@@ -499,6 +521,7 @@ public struct RoadRecord: Sendable {
         fill(&routeDesignation, fragment.routeDesignation)
         fill(&project, fragment.project)
         fill(&works, fragment.works)
+        fill(&structureNumber, fragment.structureNumber)
         notes.append(contentsOf: fragment.notes)
     }
 

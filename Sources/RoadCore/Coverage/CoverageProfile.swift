@@ -37,6 +37,12 @@ public enum CodeTableReference: String, Sendable, Codable {
     case fhwaFunctionalClass
     case penndotJurisdiction
     case txdotAdmin
+    /// The field names the owner outright rather than coding it. See `CodeTables.owner(named:)`.
+    case namedAgency
+    /// City of Dallas `rehab_type`. Classifies work, not ownership.
+    case dallasRehabType
+    /// City of Dallas `maint_resp`, which names a level of government rather than a body.
+    case dallasMaintenance
 }
 
 /// How a year is stored. Verified encodings: PennDOT writes a plain `1916`, ADOT a compact
@@ -68,6 +74,26 @@ public struct FieldMapping: Sendable, Codable, Hashable {
     public var aadt: String?
     public var crossStreetFrom: String?
     public var crossStreetTo: String?
+    /// A single dated job recorded against the segment, as city pavement layers publish it —
+    /// a year plus what was done. Emitted as a one-entry `works` list so it reaches the same
+    /// history UI a state's whole register does.
+    public var workYear: String?
+    public var workType: String?
+    public var workTypeTable: CodeTableReference?
+    /// The agency's own description of the extent, e.g. Dallas's "18400-18500 TIMBER OAKS DR".
+    public var workLocation: String?
+    /// Pavement, as a city layer publishes it. Assembled into one `SurfaceDescription`, which
+    /// already carries a type, a width, a plain-English rating and a 0-100 index because
+    /// Maricopa publishes all four.
+    public var surface: String?
+    /// The agency's own plain-English rating — Dallas's `blend_cond` is A through F.
+    public var condition: String?
+    /// A 0-100 condition index, e.g. Dallas's blended PCI or San Antonio's PCI.
+    public var conditionIndex: String?
+    public var widthFeet: String?
+    /// The NBI structure number, where a roadway layer carries one. Lets the bridge source
+    /// join exactly instead of guessing from distance and name.
+    public var structureNumber: String?
 
     /// Values that mean "no value" and must never reach the screen.
     ///

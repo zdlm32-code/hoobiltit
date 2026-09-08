@@ -71,11 +71,22 @@ public actor JurisdictionLocator {
     static let pointRadiusMeters = 2.0
     /// ~110 m. Deliberately below the 150 m road-search radius.
     static let memoDecimalPlaces = 3.0
+    /// How far the pin may drift from an *unincorporated* answer before the place is checked
+    /// again. There is no polygon to test containment against when the answer was "no place",
+    /// so this bounds how long the app can be wrong about having entered a city. Inside a
+    /// place the boundary answers exactly and this never applies.
+    static let placeRecheckMeters = 1_000.0
 
     private let client: ArcGISClient
     private var memo: [String: Jurisdiction] = [:]
     /// The county last resolved, with its boundary, so containment is answered locally.
     private var currentCounty: (jurisdiction: Jurisdiction, ring: [Coordinate])?
+    /// The incorporated place last resolved, with its boundary. Nil when the last fix was in
+    /// unincorporated county, which is a real answer and not a missing one.
+    private var currentPlace: [Coordinate]?
+    /// Where the place was last actually looked up. Only consulted when there is no place
+    /// boundary to test against — see `locate`.
+    private var placeResolvedAt: Coordinate?
     /// Counted so a test can prove drive mode is not issuing a request per fix.
     public private(set) var requestCount = 0
 
@@ -89,10 +100,26 @@ public actor JurisdictionLocator {
             // The place can still change within a county, so keep the memo authoritative for
             // the finer-grained answer and only short-circuit when it agrees.
             if let remembered = memo[Self.memoKey(coordinate)] { return remembered }
-            return current.jurisdiction
+            if placeStillHolds(at: coordinate) { return current.jurisdiction }
+            // The city changed, or may have. Returning the held answer here is what made the
+            // drive card name the place you were in when you first entered the county and keep
+            // naming it for the rest of the drive.
+            return await fetch(coordinate)
         }
         if let remembered = memo[Self.memoKey(coordinate)] { return remembered }
         return await fetch(coordinate)
+    }
+
+    /// Whether the place on the held jurisdiction is still the right one for this point.
+    ///
+    /// Inside a city the boundary answers exactly, and a long drive across one city costs no
+    /// requests at all. Outside every city there is nothing to test, so the answer is trusted
+    /// for `placeRecheckMeters` and then checked again — bounded staleness rather than the
+    /// unbounded kind, and only in unincorporated county.
+    private func placeStillHolds(at coordinate: Coordinate) -> Bool {
+        if let ring = currentPlace { return Geo.ring(ring, contains: coordinate) }
+        guard let origin = placeResolvedAt else { return false }
+        return Geo.distance(origin, coordinate) < Self.placeRecheckMeters
     }
 
     private func fetch(_ coordinate: Coordinate) async -> Jurisdiction? {
@@ -105,7 +132,8 @@ public actor JurisdictionLocator {
             maxAllowableOffset: Self.boundarySimplification)
         async let placeResult = try? client.query(
             layer: Self.placeLayer, envelope: envelope,
-            outFields: "GEOID,NAME", returnGeometry: false)
+            outFields: "GEOID,NAME", returnGeometry: true,
+            maxAllowableOffset: Self.boundarySimplification)
 
         guard let county = await countyResult?.features.features.first,
               let geoid = county["GEOID"].text, geoid.count == 5,
@@ -127,6 +155,12 @@ public actor JurisdictionLocator {
         if let ring = county.geometry?.coordinatePaths.max(by: { $0.count < $1.count }), ring.count > 2 {
             currentCounty = (jurisdiction, ring)
         }
+        // Largest ring only, as for the county. A city with detached parts — Houston publishes
+        // 100 rings — reads as "left the place" in an outlying piece, which costs one refetch
+        // and returns the right answer rather than a wrong one.
+        let placeRing = place?.geometry?.coordinatePaths.max(by: { $0.count < $1.count })
+        currentPlace = (placeRing?.count ?? 0) > 2 ? placeRing : nil
+        placeResolvedAt = coordinate
         return jurisdiction
     }
 

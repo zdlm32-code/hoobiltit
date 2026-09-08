@@ -110,8 +110,8 @@ public struct DriveCardContent: Sendable, Hashable, Codable {
         if let classification = record.classification?.value { parts.append(classification) }
         if let surface = record.surface?.value {
             if let lanes = surface.laneCount { parts.append("\(lanes) lanes") }
-            if let rating = surface.conditionRating {
-                parts.append("condition \(rating.lowercased())")
+            if let phrase = surface.conditionPhrase {
+                parts.append(phrase)
             }
         }
         if let traffic = record.trafficCount?.value {

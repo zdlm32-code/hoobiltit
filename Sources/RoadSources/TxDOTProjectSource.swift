@@ -23,6 +23,10 @@ public struct TxDOTProjectSource: RoadSource {
     static let tracker = ArcGISLayer(
         "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/ProjectTracker_AGO/FeatureServer",
         layer: 1)!
+    /// The spending ledger, one row per account line.
+    static let spending = ArcGISLayer(
+        "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/ProjectTracker_AGO/FeatureServer",
+        layer: 2)!
 
     /// Only what is used. The layer publishes 42 fields and the geometry is corridor-length, so
     /// asking for everything triples the payload on a connection that may be a phone in a car.
@@ -104,15 +108,18 @@ public struct TxDOTProjectSource: RoadSource {
             fragment.project = Attributed(Self.reference(built.1, kind: "Construction"),
                                           provenance: provenance, confidence: .spatial)
             var contractor = built.1.contractor
-            if contractor == nil, let csj = built.1.projectNumber {
-                contractor = await self.contractor(forCSJ: csj)
+            var spent: Double?
+            if let csj = built.1.projectNumber {
+                if contractor == nil { contractor = await self.contractor(forCSJ: csj) }
+                spent = await self.constructionSpend(forCSJ: csj)
             }
             fragment.funding = Attributed(
                 ProjectFunding(programmedAmount: built.1.cost,
                                fiscalYear: built.1.letDate.map { "let \(CalendarDate.year($0))" },
                                leadAgency: "Texas Department of Transportation",
                                projectNumber: built.1.projectNumber,
-                               contractor: contractor),
+                               contractor: contractor,
+                               actualSpend: spent),
                 provenance: provenance, confidence: .spatial)
         }
         // Omitted when it *is* the build project: "built under X, most recent work X" reads as
@@ -138,6 +145,24 @@ public struct TxDOTProjectSource: RoadSource {
             outFields: "CSJ_NBR,CNSTR_CMPNY_NM,CNSTR_WKBG_DT,CNSTR_PCT_COMPLETE")
         else { return nil }
         return features.features.first?["CNSTR_CMPNY_NM"].text
+    }
+
+    /// What has actually been paid out on construction for one project.
+    ///
+    /// The ledger splits a project across categories — `PE` is design, `ROW` is land — and
+    /// only `CNST` is the road being built, so the rows are filtered rather than summed
+    /// wholesale. A project with no ledger rows is the normal case for older work.
+    private func constructionSpend(forCSJ csj: String) async -> Double? {
+        guard let (features, _) = try? await client.query(
+            layer: Self.spending, field: "CSJ_NBR", equals: csj,
+            outFields: "CSJ_NBR,SPENDING_CAT,SPENT_AMT")
+        else { return nil }
+        let construction = features.features
+            .filter { $0["SPENDING_CAT"].text == "CNST" }
+            .compactMap { $0["SPENT_AMT"].double }
+        guard !construction.isEmpty else { return nil }
+        let total = construction.reduce(0, +)
+        return total > 0 ? total : nil
     }
 
     static func work(from feature: ArcGISFeature, now: Date) -> RoadWork? {

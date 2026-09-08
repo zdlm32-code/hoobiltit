@@ -258,6 +258,96 @@ public enum CodeTables {
         return .ancillary
     }
 
+    // MARK: - Owners a layer names outright
+
+    /// Reads an owner from a field that names the body instead of coding it.
+    ///
+    /// City layers routinely do this, and it is *better* than a code: San Antonio's `Owner`
+    /// runs to 43 values and includes `Bexar County`, `TxDOT`, `Ft Sam Houston`, `Lackland
+    /// AFB`, `Port Authority of San Antonio` and — on 11,017 segments — `Private`. A code
+    /// table could not carry that, and "this street is private" is a real answer to who built
+    /// it: nobody public did.
+    ///
+    /// Matching is by shape rather than by an enumerated list, because the list is a register
+    /// of every municipality and installation in a metro area and will grow.
+    public static func owner(named value: String?) -> RoadOwner? {
+        guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+        else { return nil }
+        // San Antonio's "no value yet" marker, on 61 segments and also used in Surface_Type.
+        guard raw != "TBD", raw != "Unknown", raw != "N/A" else { return nil }
+        let upper = raw.uppercased()
+
+        if upper.hasSuffix(" COUNTY") { return .county(agency: raw) }
+        if upper == "PRIVATE" || upper == "PROPERTY OWNER" { return .privateOwner }
+        if upper == "TXDOT" || upper == "STATE" || upper.hasPrefix("STATE ") {
+            return .state(agency: raw == "TxDOT" ? "Texas Department of Transportation" : raw)
+        }
+        // Military installations, which a metro street layer carries a surprising number of.
+        // Calling Lackland AFB a municipality would be plainly wrong.
+        if upper.hasSuffix(" AFB") || upper.hasPrefix("FT ") || upper.hasPrefix("FORT ")
+            || upper.hasPrefix("CAMP ") || upper.hasSuffix(" ARB") {
+            return .federal(agency: raw)
+        }
+        // Everything else is a named local body. `municipality` is approximate for a port or
+        // development authority, but the case only decides the wording around the name, and
+        // the name itself — which is what the card shows — is exactly right.
+        return .municipality(name: raw, fullName: raw)
+    }
+
+    // MARK: - Dallas maintenance responsibility
+
+    /// City of Dallas `maint_resp`, seven values over 38,564 segments.
+    ///
+    /// Kept apart from `owner(named:)` because Dallas writes the *level* — "City", "State" —
+    /// where San Antonio writes the body. Passed through `owner(named:)` a state highway in
+    /// Dallas would read "maintained by State", which is true and useless; the city tier runs
+    /// before the state tier, so this is the wording a Dallas freeway would show.
+    public static let dallasMaintenance: [String: RoadOwner] = [
+        "City": .municipality(name: "City of Dallas", fullName: "City of Dallas"),
+        "City - Other": .municipality(name: "City of Dallas", fullName: "City of Dallas"),
+        "City - Park": .municipality(name: "City of Dallas Park and Recreation",
+                                     fullName: "City of Dallas Park and Recreation"),
+        "State": .state(agency: "Texas Department of Transportation"),
+        "State Shared": .state(agency: "Texas Department of Transportation"),
+        "County Shared": .county(agency: "County highway agency"),
+        "Intermunicipal": .municipality(name: "Shared between municipalities",
+                                        fullName: "Shared between municipalities"),
+    ]
+
+    public static func owner(dallas value: String?) -> RoadOwner? {
+        guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        return dallasMaintenance[raw]
+    }
+
+    // MARK: - Dallas pavement work
+
+    /// City of Dallas `rehab_type`, a 21-value vocabulary over 38,564 street segments.
+    ///
+    /// The same build-versus-maintain judgement `PROJ_CLASS` needs, and the same reason for
+    /// making it: `Slurry Seal` covers 6,549 segments and `Street Reconstruction` 6,577, so
+    /// getting it wrong would mis-answer roughly half the city. `None`, on 11,007 segments,
+    /// means no recorded work rather than an unknown kind, and yields no entry at all.
+    public static func workKind(dallas rehabType: String?) -> RoadWorkKind? {
+        guard let raw = rehabType?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty, raw != "None"
+        else { return nil }
+        let upper = raw.uppercased()
+        // Replacing pavement panels, rebuilding to full depth or restoring the street is
+        // construction; sealing, surfacing, overlaying and patching is upkeep of what is
+        // already there. `Full-Depth Asphalt` (995 segments) and `Street Restoration` (546)
+        // were both filed as upkeep until `probe.sh` flagged them — a full-depth rebuild is
+        // the most thorough thing a city does to a street short of a new alignment.
+        if upper.contains("RECONSTRUCT") || upper.contains("PANEL REPLACE")
+            || upper.contains("REPLACE") || upper.contains("WIDEN")
+            || upper.contains("FULL-DEPTH") || upper.contains("FULL DEPTH")
+            || upper.contains("RESTORATION") {
+            return .built
+        }
+        // `Alley Improvement` stays upkeep: it is the city's alley resurfacing programme, and
+        // "improvement" in that name is a budget category rather than a description of work.
+        return .maintained
+    }
+
     // MARK: - Lookup
 
     /// Reads a code that may arrive as `4`, `"4"`, `"04"` or `"04-Municipal or City Hwy

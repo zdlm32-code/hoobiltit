@@ -29,6 +29,21 @@ struct CoverageCatalogTests {
         let profile = try #require(catalog.profile(forState: "42"))
         #expect(profile.requiredSchema == 1, "defaults apply on read, not at decode")
         #expect(profile.drawsParcels == false)
+        // The same trap one level up: this JSON has no `places` key at all, which is what
+        // every catalog published before the city tier existed looks like. It must load the
+        // states and counties it does have rather than failing whole.
+        #expect(catalog.placeProfiles.isEmpty)
+        #expect(catalog.profile(forPlace: "4819000") == nil)
+    }
+
+    @Test("The bundled catalog's places survive the read")
+    func placesLoad() throws {
+        let catalog = CoverageCatalog.bundled
+        #expect(!catalog.placeProfiles.isEmpty)
+        for geoid in catalog.placeProfiles.keys {
+            #expect(catalog.profile(forPlace: geoid) != nil, "\(geoid) did not survive")
+            #expect(geoid.count == 7, "a place GEOID is state FIPS plus five digits")
+        }
     }
 
     @Test("Every entry in the bundled catalog survives the read, not just the file")
