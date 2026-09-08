@@ -237,3 +237,32 @@ struct IowaPortlandTests {
         #expect(CodeTables.owner(named: "Unknown") == nil)
     }
 }
+
+@Suite("New Mexico — an event table, not a road network")
+struct NewMexicoTests {
+    let i25 = RoadQuery(latitude: 35.1050, longitude: -106.6295)
+
+    @Test("A state highway is owned by the state")
+    func stateHighway() async throws {
+        let source = FlatInventorySource(
+            profile: CoverageCatalog.bundled.profile(forState: "35")!,
+            client: ArcGISClient(transport: FixtureTransport([
+                "HPMS2026/FeatureServer/0": .fixture("nmdot_i25")])),
+            now: { fixedNow })!
+        let fragment = try await source.fetch(i25)
+        #expect(fragment.owner?.value == .state(agency: "State highway agency"))
+        // No name field exists on the layer, so TIGER names the road.
+        #expect(fragment.segmentName == nil)
+    }
+
+    @Test("Only three fields are requested, and that is deliberate")
+    func narrowOutFields() throws {
+        // 2,898,383 rows is not 2.9 million roads: it is the same roads split at every
+        // attribute change. A 150 m envelope returns 1,840 features and about 350 KB even
+        // asking for three fields — the largest per-lookup payload of any profile shipped.
+        let profile = try #require(CoverageCatalog.bundled.profile(forState: "35"))
+        let requested = try #require(profile.outFields)
+        #expect(requested.count <= 3)
+        #expect(profile.fields?.functionalClass == nil, "not worth the bytes")
+    }
+}

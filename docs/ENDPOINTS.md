@@ -2044,3 +2044,40 @@ publishes no statewide roadway service, so this is the state's only entry.
 Oklahoma's own `Pavement_Change` layers carry a maintenance division and nothing else; Utah's
 `HPMS_Report_GIS` is 24,720 segments with no ownership field. **Six cross-state false positives
 in four batches** — the in-state pin check is now the single most useful step in the loop.
+
+---
+
+## 26. Batch five — New Mexico, and two fields that are constants
+
+Arkansas, Mississippi, Kansas, New Mexico, Nebraska and Idaho. One shipped.
+
+### New Mexico
+
+```
+https://services.arcgis.com/hOpd7wfnKm16p9D9/arcgis/rest/services/HPMS2026/FeatureServer/0
+```
+
+**2,898,383 rows**, which is not 2.9 million roads — it is the same roads split at every
+attribute change, the shape an HPMS submission takes. Verified as New Mexico and not a national
+layer: 9,274 features around Albuquerque and **zero** at Austin, Chicago and San Francisco.
+
+`Ownership` is the plain HPMS space — 1 state (1,527,767), 4 municipal (361,599), 2 county
+(145,528), 26 private (33,223), 50 tribal (9,469) — and the 804,586 rows carrying none claim
+nothing. There is no name field at all, so TIGER names the road.
+
+**The segmentation is the cost.** A 150 m envelope returns **1,840 features and about 350 KB**
+even with `outFields` narrowed to three, the largest per-lookup payload of any profile shipped.
+That is why nothing beyond ownership and traffic is requested, and a test asserts it.
+
+### A field that is a constant is not a field
+
+Two states failed on the same shape this batch, and Kentucky nearly did in §24:
+
+- **Nebraska.** Omaha publishes 35,239 centrelines whose `MAINTBY` is the value `1` on **every
+  single row**. A field with one value carries no information, however promising its name.
+- **Arkansas.** `On_System_Roadway_Inventory` is 20,428 segments — the state system only, with no
+  ownership field.
+
+Mississippi, Kansas and Idaho publish no statewide roadway service. The Kansas search returned a
+`Street_Centerlines` layer that answers nothing in Wichita, and the Idaho search returned the
+Chattanooga extract for the fourth time.

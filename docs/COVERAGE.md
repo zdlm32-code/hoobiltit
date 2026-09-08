@@ -6,7 +6,7 @@ part, because each one records what was actually checked so it is not re-probed 
 
 Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number is given.
 
-**27 profiles shipped · 12 states · 2 counties · 13 cities**
+**28 profiles shipped · 13 states · 2 counties · 13 cities**
 
 ---
 
@@ -18,6 +18,7 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | ✅ | **Texas** | TxDOT inventory + DCIS register | Owner, class, traffic; **73,306 projects 1970–2050 with cost**, contractor on live work | 10.2b, 10.2c |
 | ✅ | **North Carolina** | NCDOT road characteristics | 1.2M segments, names on 97%, **473,065 improvement dates**, 1,049 named owners. Only agency publishing domains | 18 |
 | ✅ | **Massachusetts** | MassDOT road inventory | 409,586 segments, 18 documented owners incl. private and **120,329 unaccepted**. Second agency publishing domains | 20 |
+| ✅ | **New Mexico** | HPMS event table | HPMS ownership statewide incl. 33,223 private and 9,469 tribal. TIGER names. Heaviest payload shipped | 26 |
 | ✅ | **Iowa** | Iowa DOT road network | 359,066 segments with HPMS ownership; TIGER names them, because Iowa's name field prefixes the owner. No dates | 25 |
 | ✅ | **Kentucky** | KYTC road assets | 480,065 segments, every one named; ownership from route type, city roads named after their city. No dates | 24 |
 | ✅ | **Ohio** | ODOT road inventory | 402,947 segments, jurisdiction on all, names on 94%, **townships** as an authority. No dates | 19 |
@@ -44,6 +45,9 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | California | Caltrans server has a `CHhighway` folder with one service | 18 |
 | Wisconsin, Minnesota, South Carolina | No statewide roadway service found | 24 |
 | Oklahoma, Connecticut, Utah, Nevada | No statewide roadway service naming an owner | 25 |
+| Arkansas | `On_System_Roadway_Inventory` is 20,428 state-system segments with no ownership field | 26 |
+| Mississippi, Kansas, Idaho | No statewide roadway service found | 26 |
+| Nebraska | Omaha publishes 35,239 centrelines but `MAINTBY` is the value `1` on every one | 26 |
 | Oregon | No statewide service; Portland's metro centreline is shipped instead | 25 |
 | Colorado | `PavementCondition` is 437,195 segments carrying a route id, surface and survey year — no name, no owner | 24 |
 | Alabama | `HPMS_Year2017_F_System_Data` is 185,150 segments carrying only a record year and route id | 24 |

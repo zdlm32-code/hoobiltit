@@ -666,6 +666,35 @@
       },
       "_comment": "359066 segments. OWNER_CODE is the plain HPMS space - 4 municipal (152954), 2 county (138861), 1 state (59765), plus 11, 12, 21, 62, 63 and 70 - so the shipped table reads it and 2372 rows carrying none claim nothing. Deliberately does NOT map a name: COMMON_NAME_1 prefixes the owner onto the road ('CITY OF DANA, ECKSTEIN STREET') and SHORT_COMMON_NAME_1 still trails a direction ('S AVENUE, N'), so TIGER's name is the better one and Iowa contributes ownership. SURFACE_TYPE is undocumented numeric codes (65, 20, 31) and is not read. No construction dates are published.",
       "dateCaveat": "Iowa publishes who owns each road but no construction or resurfacing dates."
+    },
+    "35": {
+      "id": "nm.nmdot",
+      "displayName": "New Mexico HPMS",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services.arcgis.com/hOpd7wfnKm16p9D9/arcgis/rest/services/HPMS2026/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "Ownership",
+        "MaintenanceOperations",
+        "AADT"
+      ],
+      "fields": {
+        "ownership": "Ownership",
+        "ownershipTable": "hpmsOwnership",
+        "aadt": "AADT",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          " ",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "New Mexico's HPMS submission as an event table: 2898383 rows, which is not 2.9 million roads but the same roads split at every attribute change. Verified as New Mexico rather than national - 9274 features around Albuquerque and zero at Austin, Chicago and San Francisco. Ownership is the plain HPMS space: 1 state (1527767), 4 municipal (361599), 2 county (145528), 26 private (33223), 50 tribal (9469), plus 11, 62, 64 and 80; 804586 rows carry none and claim nothing. Carries no name field at all, so TIGER names the road. The segmentation is the cost: a 150 m envelope returns 1840 features and about 350 KB even with outFields narrowed to three, which is the largest per-lookup payload of any profile shipped and the reason nothing beyond ownership and traffic is requested.",
+      "dateCaveat": "New Mexico publishes who owns each road but no construction or resurfacing dates."
     }
   },
   "counties": {
