@@ -91,8 +91,13 @@ public struct Coverage: Sendable, Hashable {
                 + (record.segmentName != nil ? " The name comes from Census TIGER/Line, which"
                    + " carries no ownership or construction date." : "")
         case .state, .county:
-            if gaps.contains(.date), !dateCaveats.isEmpty {
-                return dateCaveats.joined(separator: " ")
+            // The most local profile's caveat, not all of them joined. A pin in Brownsville
+            // consults a city, a state and a county profile, and joining their three sentences
+            // produced a paragraph that said the same thing three ways. `dateCaveats` is built
+            // in pipeline order, so the first entry is the most local source consulted — and
+            // `shortDateNote` already showed only that one.
+            if gaps.contains(.date), let caveat = dateCaveats.first {
+                return caveat
             }
             if gaps.contains(.owner), let place {
                 return "No source consulted for \(place) names a maintaining agency for this road."

@@ -36,6 +36,26 @@ struct CoverageCatalogTests {
         #expect(catalog.profile(forPlace: "4819000") == nil)
     }
 
+    @Test("Only the most local caveat is shown, not all of them joined")
+    func oneCaveat() {
+        // A pin in Brownsville consults a city, a state and a county profile. Joined, their
+        // three sentences became a paragraph saying the same thing three ways.
+        var record = RoadRecord(query: RoadQuery(latitude: 25.9015, longitude: -97.4975))
+        record.segmentName = Attributed("E 12TH ST",
+            provenance: Provenance(sourceID: "x", sourceName: "X",
+                                   url: URL(string: "https://example.com")!, fetchedAt: Date()),
+            confidence: .spatial)
+        let coverage = Coverage(level: .county, jurisdiction: nil,
+                                profileNames: ["City", "State", "County"],
+                                dateCaveats: ["The city publishes no dates.",
+                                              "The state publishes none either.",
+                                              "Nor does the county."])
+        let explanation = try? #require(coverage.explanation(for: record))
+        #expect(explanation == "The city publishes no dates.")
+        // And the short form has always agreed with that.
+        #expect(coverage.shortDateNote(for: record)?.isEmpty == false)
+    }
+
     @Test("The bundled catalog's places survive the read")
     func placesLoad() throws {
         let catalog = CoverageCatalog.bundled
