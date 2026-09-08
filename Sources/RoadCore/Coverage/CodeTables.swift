@@ -337,6 +337,74 @@ public enum CodeTables {
         return dallasMaintenance[raw]
     }
 
+    // MARK: - A level of government, written out
+
+    /// Fields that name the *level* that keeps a road, not the body and not a code.
+    ///
+    /// Montana writes `City`, `County`, `State`, `Federal`, `Private`, `Tribal`, `Public`;
+    /// New Hampshire writes `Local`, `State`, `Private`, `Federal`, `Not Maintained`,
+    /// `Recreation`, `Out of state`. The two vocabularies overlap enough to share a table and
+    /// differ enough that each keeps its own wording — New Hampshire's local roads are town
+    /// roads, and calling them municipal would misname 60,621 of them.
+    ///
+    /// Kept apart from `owner(named:)`, which would file every one of these as a municipality
+    /// *called* "Not Maintained".
+    public static let authorityLevels: [String: RoadOwner] = [
+        "CITY": .municipality(name: "City or municipal highway agency",
+                              fullName: "City or municipal highway agency"),
+        "LOCAL": .municipality(name: "City or town highway agency",
+                               fullName: "City or town highway agency"),
+        "TOWN": .municipality(name: "Town or township highway agency",
+                              fullName: "Town or township highway agency"),
+        "COUNTY": .county(agency: "County highway agency"),
+        "STATE": .state(agency: "State highway agency"),
+        "FEDERAL": .federal(agency: "Federal agency"),
+        "PRIVATE": .privateOwner,
+        "TRIBAL": .tribal(agency: "Indian tribe nation"),
+        // New Hampshire's Class VI roads: a public right of way the town has voted to stop
+        // maintaining. 3,351 of them, and the one honest thing to say is that nobody keeps it.
+        "NOT MAINTAINED": .notPubliclyMaintained,
+    ]
+
+    /// Nil for a value that names no level.
+    ///
+    /// Montana's `Public` (3,097 rows) says a road is open to the public without saying who
+    /// keeps it, and New Hampshire's `Recreation` (111) and `Out of state` (15) are the same
+    /// kind of non-answer. Reporting them as any owner would be inventing one.
+    public static func owner(level value: String?) -> RoadOwner? {
+        guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+        else { return nil }
+        return authorityLevels[raw.uppercased()]
+    }
+
+    // MARK: - South Dakota road systems
+
+    /// SDDOT `LOCAL_SYSTEM`, read from the domain the layer publishes.
+    ///
+    /// South Dakota is the only state shipped that separates a **county secondary** road from a
+    /// plain county road and names a **road district** as an authority in its own right. Both
+    /// distinctions are the state's, not this app's, so both are kept.
+    public static let sdLocalSystems: [Int: RoadOwner] = [
+        3: .county(agency: "County secondary highway system"),
+        4: .county(agency: "County highway system"),
+        6: .municipality(name: "Township road system", fullName: "Township road system"),
+        7: .municipality(name: "City street system", fullName: "City street system"),
+        8: .municipality(name: "Road district", fullName: "Road district"),
+    ]
+
+    /// Nil for `0 - Other Administration` (6,219 rows) and `99 - Not Attributed` (7,827).
+    ///
+    /// Neither names an authority. 99 is mostly the state trunk system, which `DATA_CLASS`
+    /// identifies properly — so a profile lists this rule first and that one second, and the
+    /// state roads are answered by the field that actually knows.
+    public static func owner(sdLocalSystem code: Int) -> RoadOwner? { sdLocalSystems[code] }
+
+    /// SDDOT `DATA_CLASS`. Only code 1 names an owner; the rest repeat what `LOCAL_SYSTEM`
+    /// already said, and code 6 is a ramp, which is a shape rather than an authority.
+    public static func owner(sdDataClass code: Int) -> RoadOwner? {
+        code == 1 ? .state(agency: "South Dakota Department of Transportation") : nil
+    }
+
     // MARK: - Pavement treatments
 
     /// What a pavement treatment did, from the plain English cities write it in.

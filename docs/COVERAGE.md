@@ -6,7 +6,7 @@ part, because each one records what was actually checked so it is not re-probed 
 
 Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number is given.
 
-**30 profiles shipped · 15 states · 2 counties · 13 cities**
+**33 profiles shipped · 18 states · 2 counties · 13 cities**
 
 ---
 
@@ -29,6 +29,9 @@ Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number
 | ✅ | **Louisiana** | LA DOTD LRS | Name, HPMS owner, construction and improvement years on control sections | 10.2 |
 | ✅ | **Georgia** | GDOT road inventory | 872,056 segments — HPMS ownership confirmed exactly by GDOT's own `STATE_ROUTE` flag; names on 161,717. No dates | 27 |
 | ✅ | **Vermont** | VTrans road centreline | 77,263 centrelines where the **town** is the largest road authority (44,068) and **16,408 are private**. Counties own none. No dates | 27 |
+| ✅ | **New Hampshire** | NHDOT road inventory (GRANIT) | 111,680 segments; `LC_LEGEND` names every one, incl. 25,985 private and **3,351 Class VI roads nobody maintains**. No dates | 28 |
+| ✅ | **Montana** | Montana transportation framework | 238,768 centrelines with a **published ownership domain**; names all, owns 51,010 — silent on the other 78.6%. No dates | 28 |
+| ✅ | **South Dakota** | SDDOT road inventory | 150,179 segments from **SDDOT's own server**; 38,361 township roads, 3,051 **road district** roads, county secondary kept apart. No dates | 28 |
 
 ### Probed, not shipped
 

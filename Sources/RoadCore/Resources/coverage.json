@@ -783,6 +783,134 @@
       },
       "_comment": "77263 centrelines on layer 92, not 0. Ownership is the plain HPMS space and its shape is unlike any other state shipped: 3 town (44068) is the largest class, which almost nowhere else uses, and 26 PRIVATE is second at 16408 - more than a fifth of every road in Vermont - against 10702 state and 5205 municipal. Code 2 county is used ZERO times: Vermont's counties are judicial districts and keep no roads. RTNAME is self-describing and confirms the whole partition exactly: ownership 1 is VT/US/I signed routes (100%), 3 and 4 are both TH- town-highway numbers (98% and 100%), and 26 has no route number at all on 16406 of 16408 rows. Vermont also publishes domains for SURFACETYPE and AOTCLASS, which almost no service does - SURFACETYPE is decoded from its published domain, and its code 9 Unknown (12394 rows) is nulled rather than shown. RTNAME's '-' placeholder on 16731 rows is nulled too so it can never be mistaken for a road's name. No construction dates.",
       "dateCaveat": "Vermont publishes who owns each road but no construction or resurfacing dates."
+    },
+    "30": {
+      "id": "mt.mdt",
+      "displayName": "Montana road centreline",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services.arcgis.com/qnjIrwR8z5Izc0ij/arcgis/rest/services/Montana_Transportation_Framework/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "St_PreDir",
+        "St_Name",
+        "St_PosTyp",
+        "St_PosDir",
+        "Ownership",
+        "RoadClass",
+        "SurfaceType",
+        "Access",
+        "SpeedLimit",
+        "IncMuni_L",
+        "County_L"
+      ],
+      "fields": {
+        "nameParts": [
+          "St_PreDir",
+          "St_Name",
+          "St_PosTyp",
+          "St_PosDir"
+        ],
+        "ownership": "Ownership",
+        "ownershipTable": "authorityLevel",
+        "surface": "SurfaceType",
+        "nullStrings": [
+          "",
+          "  ",
+          "Unknown",
+          "Other",
+          "N/A"
+        ],
+        "nullNumbers": [
+          0
+        ]
+      },
+      "_comment": "238768 centrelines, the NG911 framework Montana assembles from its counties. Ownership carries a PUBLISHED domain - City, County, Federal, Private, Public, State, Tribal - which almost no service does, so the levels are read rather than derived. It is also null on 187758 rows (78.6%), so Montana names an owner for 51010 roads and stays silent on the rest rather than guessing; the null rows still get their name from the layer and their owner from no one. Public (3097) names no level and claims nothing. The name is split across four fields in Title Case (South + Montana + Avenue) and is joined, not picked from. SurfaceType is a published domain too - Dirt, Gravel, Paved - and its Unknown is nulled. No construction dates.",
+      "dateCaveat": "Montana publishes who owns about a fifth of its roads and no construction dates."
+    },
+    "46": {
+      "id": "sd.sddot",
+      "displayName": "South Dakota road inventory",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://sdgis.sd.gov/dot/rest/services/TIM/DOT_Local_Roads_viewer/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "ROADNAME",
+        "LOCAL_SYSTEM",
+        "DATA_CLASS",
+        "SURFACE_TYPE",
+        "SURFACE_WIDTH",
+        "THROUGH_LANES",
+        "CURRENT_ADT",
+        "FUNC_CLASS"
+      ],
+      "fields": {
+        "name": [
+          "ROADNAME"
+        ],
+        "ownershipRules": [
+          {
+            "field": "LOCAL_SYSTEM",
+            "table": "sdLocalSystem"
+          },
+          {
+            "field": "DATA_CLASS",
+            "table": "sdDataClass"
+          }
+        ],
+        "aadt": "CURRENT_ADT",
+        "widthFeet": "SURFACE_WIDTH",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          "  ",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "150179 segments served from SDDOT's OWN server at sdgis.sd.gov, not ArcGIS Online - the first state found that way, and the reason the plan says to try the state DOT's server before concluding nothing exists. LOCAL_SYSTEM carries a published domain and is the richest local vocabulary shipped: 7 city street (54576), 6 TOWNSHIP system (38361), 4 county (25883), 3 county SECONDARY (14262), 8 ROAD DISTRICT (3051). South Dakota is the only state shipped that separates a county secondary road from a county road or names a road district. Its 99 Not Attributed (7827) is mostly the state trunk system, which DATA_CLASS=1 identifies properly - hence two rules, LOCAL_SYSTEM first and DATA_CLASS second, so state highways are answered by the field that knows. FUNC_CLASS is the two-digit extended scheme (01-19) like New York and must NOT use the FHWA table, so it is not mapped. FED_DOMAIN names who federally administers the land, not who keeps the road, so it is not mapped either. No construction dates.",
+      "dateCaveat": "South Dakota publishes who keeps each road but no construction or resurfacing dates."
+    },
+    "33": {
+      "id": "nh.nhdot",
+      "displayName": "New Hampshire road inventory",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://nhgeodata.unh.edu/nhgeodata/rest/services/TN/RoadsForDOTViewer/MapServer",
+      "layer": 5,
+      "outFields": [
+        "STREET",
+        "LC_LEGEND",
+        "TOWN_NAME",
+        "FUNCT_SYSTEM",
+        "SRI_TYPE",
+        "LEGIS_CLASS",
+        "TIER_DESCR",
+        "IS_NHS"
+      ],
+      "fields": {
+        "name": [
+          "STREET"
+        ],
+        "ownership": "LC_LEGEND",
+        "ownershipTable": "authorityLevel",
+        "functionalClass": "FUNCT_SYSTEM",
+        "functionalClassTable": "fhwaFunctionalClass",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          "  ",
+          "Unknown",
+          "N/A"
+        ]
+      },
+      "_comment": "111680 segments on layer 5, not 0, served from NH GRANIT at nhgeodata.unh.edu. The same inventory also appears inside a VERMONT Amtrak study on ArcGIS Online; this is the first-party publication and is used instead. OWNERSHIP is a trap - it reads TOWN and PRIVATE on most rows but numeric patrol codes (611, 325, 324) on the state ones, so it is not mapped. LC_LEGEND is the clean field: exactly 7 values covering every row, no codes - Local 60621, Private 25985, State 21291, NOT MAINTAINED 3351, Federal 306, Recreation 111, Out of state 15. Its Not Maintained count matches LEGIS_CLASS VI exactly, which is New Hampshire's Class VI road: a public right of way the town has voted to stop maintaining, and the one honest answer is that nobody keeps it. Recreation and Out of state name no authority and claim nothing. FUNCT_SYSTEM is the plain FHWA 1-7. No construction dates.",
+      "dateCaveat": "New Hampshire publishes who keeps each road, including its unmaintained Class VI roads, but no construction dates."
     }
   },
   "counties": {

@@ -64,6 +64,15 @@ public enum CodeTableReference: String, Sendable, Codable {
     case ohioJurisdiction
     /// MassDOT `JURISDICTN`, eighteen documented values.
     case massdotJurisdiction
+    /// A field that names a *level* of government in plain English rather than a body or a
+    /// code — Montana's `Ownership` and New Hampshire's `LC_LEGEND`. See
+    /// `CodeTables.owner(level:)`.
+    case authorityLevel
+    /// SDDOT `LOCAL_SYSTEM`, which distinguishes a county secondary road, a township road and
+    /// a road district from one another.
+    case sdLocalSystem
+    /// SDDOT `DATA_CLASS`, which is the only field that identifies the state trunk system.
+    case sdDataClass
 }
 
 /// How a year is stored. Verified encodings: PennDOT writes a plain `1916`, ADOT a compact

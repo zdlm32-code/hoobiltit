@@ -2160,3 +2160,88 @@ win. Any future candidate matching 171,572 features is this layer.
 
 The search-then-verify sweep used here checks every candidate against two in-state pins before
 reporting it. That is what caught Hawaii, and it is what should have caught Georgia in §22.
+
+## 28. Batch seven — three states found by asking the state, not the search
+
+This batch changed the method. §27's sweep verified every candidate at two in-state pins, which
+is what caught Hawaii. This one added the step the plan had always specified and §22–26 had
+skipped: **when the search finds nothing, ask the state DOT's own server.** Two of the three
+states here were rejected by the ArcGIS Online search and shipped from an on-prem server.
+
+### New Hampshire — and a field that looks right and is not
+
+`nhgeodata.unh.edu/nhgeodata/rest/services/TN/RoadsForDOTViewer/MapServer/**5**` — 111,680
+segments, published by NH GRANIT. The same inventory also sits inside
+`VT_Amtrak_Suitability_Analysis_WFL1` on ArcGIS Online, a **Vermont** study; that is a consultant's
+extract of somebody else's data and is not what this app depends on.
+
+`OWNERSHIP` is the obvious field and is a trap:
+
+| `OWNERSHIP` | n |
+|---|---|
+| TOWN | 67,921 |
+| PRIVATE | 25,226 |
+| `611`, `325`, `324`, `213`, … | ~300 each |
+
+The numeric values are NHDOT maintenance-patrol codes, and every one of them pairs with
+`SRI_TYPE = State`. Mapped as ownership, a state highway would be filed as a body called "611".
+
+`LC_LEGEND` is the field to use — exactly **seven** values, no codes, covering all 111,680 rows:
+Local 60,621 · Private 25,985 · State 21,291 · **Not Maintained 3,351** · Federal 306 ·
+Recreation 111 · Out of state 15.
+
+"Not Maintained" is New Hampshire's **Class VI** road: a public right of way the town has voted
+to stop maintaining. The count matches `LEGIS_CLASS = VI` exactly, which is the corroboration
+that the two fields describe the same thing. `RoadOwner.notPubliclyMaintained` already existed
+for Massachusetts' unaccepted streets and says it properly. `Recreation` and `Out of state` name
+no authority and claim nothing.
+
+### Montana — a published domain, and silence on four roads in five
+
+`Montana_Transportation_Framework/FeatureServer/0` — 238,768 centrelines, the NG911 framework
+Montana assembles from its counties. `Ownership` carries a **published domain**: City, County,
+Federal, Private, Public, State, Tribal.
+
+It is also **null on 187,758 rows — 78.6% of the state**. Montana therefore names an owner for
+51,010 roads and says nothing about the rest. Those rows still get their name from the layer, so
+the road is identified and only the ownership is left unclaimed. A profile that filled the gap
+with "state" would be wrong four times in five.
+
+`Public` (3,097) says a road is open to the public without saying who keeps it, and yields
+nothing. The name is split across four Title Case fields (`South` + `Montana` + `Avenue`) and is
+joined, as Ohio's is, rather than picked from.
+
+### South Dakota — from the state's own server
+
+`sdgis.sd.gov/dot/rest/services/TIM/DOT_Local_Roads_viewer/FeatureServer/0` — 150,179 segments.
+**Not on ArcGIS Online at all.** The search returned nothing for South Dakota in §27; the state's
+own server had the inventory the whole time.
+
+`LOCAL_SYSTEM` carries a published domain and is the richest local vocabulary shipped anywhere:
+
+| `LOCAL_SYSTEM` | n | |
+|---|---|---|
+| 7 City Street | 54,576 | |
+| 6 **Township System** | 38,361 | |
+| 4 County System | 25,883 | |
+| 3 **County Secondary** System | 14,262 | kept apart from 4, because the state keeps them apart |
+| 99 Not Attributed | 7,827 | 6,852 of these are `DATA_CLASS = 1`, the state trunk system |
+| 0 Other Administration | 6,219 | names no authority |
+| 8 **Road District** | 3,051 | an authority no other state names |
+
+Two rules in order: `LOCAL_SYSTEM` first, then `DATA_CLASS`, because a state highway carries
+`99 - Not Attributed` in the first field and only the second can answer it.
+
+`FUNC_CLASS` is the **two-digit extended scheme** (01–19), as New York's is, and must not be read
+through the FHWA 1–7 table — so it is not mapped. `FED_DOMAIN` names who federally administers
+the land, not who keeps the road, and is not mapped either.
+
+### One switch instead of two if-chains
+
+Adding three tables meant touching `ProfileMapping` in two places that had to agree and were not
+checked against each other. That is the exact shape of the `.dallasMaintenance` bug fixed in
+Phase 0: the rule path's if-chain silently omitted a table the direct path handled, and nothing
+failed — a profile using it just reported no owner.
+
+Both paths now route through one `decode(_:table:names:)` with an **exhaustive switch**, so
+adding a `CodeTableReference` case is a compile error until it is handled, on both paths at once.

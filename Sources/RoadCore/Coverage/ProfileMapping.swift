@@ -78,36 +78,51 @@ public enum ProfileMapping {
             return nil
         }
         guard let field = mapping.ownership else { return nil }
-        // Read before the numeric decode: this field holds "Bexar County", not a code, and
+        return decode(feature[field], table: mapping.ownershipTable,
+                      names: mapping.ownerNames, mapping)
+    }
+
+    /// The one place a table reference turns into an owner.
+    ///
+    /// Both entry points route through this. Keeping two parallel if-chains is what let
+    /// `.dallasMaintenance` go unhandled on the rule path while the switch stayed green — the
+    /// chain was not exhaustiveness-checked, so the omission was silent and a profile using it
+    /// simply reported no owner. One `switch` cannot go quietly out of step with itself.
+    static func decode(_ value: AttributeValue, table: CodeTableReference?,
+                       names: [String: String]?, _ mapping: FieldMapping) -> RoadOwner? {
+        switch table {
+        // Read before any numeric decode: these fields hold "Bexar County", not a code, and
         // `CodeTables.code` would take the leading digits of a name and invent an owner.
-        if mapping.ownershipTable == .massdotJurisdiction {
-            return feature[field].text.flatMap { CodeTables.owner(massdot: $0) }
-        }
-        if mapping.ownershipTable == .ohioJurisdiction {
-            return feature[field].text.flatMap { CodeTables.owner(ohio: $0) }
-        }
-        if mapping.ownershipTable == .adotOwnership {
-            guard let text = feature[field].text, !mapping.isNull(text) else { return nil }
+        case .massdotJurisdiction:
+            return value.text.flatMap { CodeTables.owner(massdot: $0) }
+        case .ohioJurisdiction:
+            return value.text.flatMap { CodeTables.owner(ohio: $0) }
+        case .adotOwnership:
+            guard let text = value.text, !mapping.isNull(text) else { return nil }
             return CodeTables.owner(adot: text)
-        }
-        if mapping.ownershipTable == .dallasMaintenance {
-            return CodeTables.owner(dallas: feature[field].text)
-        }
-        if mapping.ownershipTable == .namedAgency {
-            guard var text = feature[field].text, !mapping.isNull(text) else { return nil }
-            if let renamed = mapping.ownerNames?[text] {
+        case .dallasMaintenance:
+            return CodeTables.owner(dallas: value.text)
+        case .authorityLevel:
+            guard let text = value.text, !mapping.isNull(text) else { return nil }
+            return CodeTables.owner(level: text)
+        case .namedAgency:
+            guard var text = value.text, !mapping.isNull(text) else { return nil }
+            if let renamed = names?[text] {
                 guard !renamed.isEmpty else { return nil }
                 text = renamed
             }
             return CodeTables.owner(named: text)
-        }
-        guard let code = CodeTables.code(feature[field]) else { return nil }
-        switch mapping.ownershipTable {
-        case .hpmsOwnership:        return CodeTables.owner(hpms: code)
-        case .penndotJurisdiction:  return CodeTables.owner(penndot: code)
-        case .txdotAdmin:           return CodeTables.owner(txdot: code)
-        case .fhwaFunctionalClass, .pavementTreatment, .namedAgency, .dallasMaintenance,
-             .adotOwnership, .ncdotImprovement, .ohioJurisdiction, .massdotJurisdiction, .none:
+        case .hpmsOwnership:
+            return CodeTables.code(value).flatMap { CodeTables.owner(hpms: $0) }
+        case .penndotJurisdiction:
+            return CodeTables.code(value).flatMap { CodeTables.owner(penndot: $0) }
+        case .txdotAdmin:
+            return CodeTables.code(value).flatMap { CodeTables.owner(txdot: $0) }
+        case .sdLocalSystem:
+            return CodeTables.code(value).flatMap { CodeTables.owner(sdLocalSystem: $0) }
+        case .sdDataClass:
+            return CodeTables.code(value).flatMap { CodeTables.owner(sdDataClass: $0) }
+        case .fhwaFunctionalClass, .pavementTreatment, .ncdotImprovement, .none:
             return nil
         }
     }
@@ -115,31 +130,7 @@ public enum ProfileMapping {
     /// One rule's answer, or nil so the next may try.
     static func owner(_ feature: ArcGISFeature, rule: OwnershipRule,
                       _ mapping: FieldMapping) -> RoadOwner? {
-        var kind: RoadOwner?
-        if rule.table == .namedAgency {
-            guard var text = feature[rule.field].text, !mapping.isNull(text) else { return nil }
-            if let renamed = rule.names?[text] {
-                guard !renamed.isEmpty else { return nil }
-                text = renamed
-            }
-            kind = CodeTables.owner(named: text)
-        } else if rule.table == .adotOwnership {
-            kind = feature[rule.field].text.flatMap { CodeTables.owner(adot: $0) }
-        } else if rule.table == .hpmsOwnership {
-            kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(hpms: $0) }
-        } else if rule.table == .penndotJurisdiction {
-            kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(penndot: $0) }
-        } else if rule.table == .massdotJurisdiction {
-            kind = feature[rule.field].text.flatMap { CodeTables.owner(massdot: $0) }
-        } else if rule.table == .ohioJurisdiction {
-            kind = feature[rule.field].text.flatMap { CodeTables.owner(ohio: $0) }
-        } else if rule.table == .txdotAdmin {
-            kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(txdot: $0) }
-        } else if rule.table == .dallasMaintenance {
-            // Missing until now. Unlike the switch in `owner(_:_:)` this chain is not checked
-            // for exhaustiveness, so a rule naming this table yielded no owner and no error.
-            kind = CodeTables.owner(dallas: feature[rule.field].text)
-        }
+        let kind = decode(feature[rule.field], table: rule.table, names: rule.names, mapping)
         guard let kind else { return nil }
         // The code gave the level; a name field, where the layer has one, gives the body.
         guard let nameField = rule.nameField,

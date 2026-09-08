@@ -422,6 +422,38 @@ print("new:"+",".join(new) if new else "ok")')
   echo
 }
 
+check_nh_legend() {
+  echo "=== NHDOT LC_LEGEND, and the Class VI count (ENDPOINTS.md 28)"
+  local base="https://nhgeodata.unh.edu/nhgeodata/rest/services/TN/RoadsForDOTViewer/MapServer/5/query"
+  local stats="%5B%7B%22statisticType%22%3A%22count%22%2C%22onStatisticField%22%3A%22OBJECTID%22%2C%22outStatisticFieldName%22%3A%22n%22%7D%5D"
+  local out
+  out=$(curl -s -m 90 "$base?where=1%3D1&groupByFieldsForStatistics=LC_LEGEND%2CLEGIS_CLASS&outStatistics=$stats&f=json" \
+    | python3 -c '
+import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print("err"); raise SystemExit
+if "error" in d: print("err"); raise SystemExit
+known={"Local","Private","State","Not Maintained","Federal","Recreation","Out of state"}
+seen, notm, six = set(), 0, 0
+for f in d.get("features", []):
+    a=f["attributes"]; v=(a.get("LC_LEGEND") or "").strip(); n=a.get("n",0)
+    if v: seen.add(v)
+    if v=="Not Maintained": notm+=n
+    if (a.get("LEGIS_CLASS") or "").strip()=="VI": six+=n
+new=sorted(v for v in seen if v not in known)
+if new: print("new:"+",".join(new))
+elif notm!=six: print("drift:%d vs %d"%(notm,six))
+else: print("ok:%d"%notm)')
+  echo "  LC_LEGEND -> ${out:-?}"
+  case "$out" in
+    ok:*)    echo "  OK: seven known values, and Not Maintained still equals LEGIS_CLASS VI (${out#ok:} rows)." ;;
+    drift:*) echo "  CHECK: Not Maintained no longer matches Class VI (${out#drift:}) -- the two fields have parted company." ;;
+    err)     echo "  INCONCLUSIVE: the request failed; re-run before drawing any conclusion." ;;
+    *)       echo "  CHECK: a new legend value appeared -- decide it before it reaches CodeTables.authorityLevels." ;;
+  esac
+  echo
+}
+
 # Feature count for a query URL, or the string "err" if the request did not come back.
 count() {
   curl -s -m 25 --retry 3 --retry-delay 1 --retry-all-errors "$1" | python3 -c '
@@ -453,4 +485,5 @@ else
   check_metro_sentinels
   check_ncdot_domains
   check_ohio_jurisdiction
+  check_nh_legend
 fi
