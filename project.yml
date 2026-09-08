@@ -10,7 +10,7 @@ options:
 # would otherwise have to find and update two places.
 settings:
   base:
-    CURRENT_PROJECT_VERSION: 16
+    CURRENT_PROJECT_VERSION: 17
     MARKETING_VERSION: "1.0"
 
 packages:
