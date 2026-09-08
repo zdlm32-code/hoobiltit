@@ -199,7 +199,11 @@ public enum ProfileMapping {
         if fragment.yearLastConstruction == nil, let built = date(feature, mapping.yearBuilt, mapping) {
             fragment.yearLastConstruction = Attributed(built, provenance: provenance, confidence: confidence)
         }
-        if fragment.yearLastImprovement == nil, let improved = date(feature, mapping.yearImproved, mapping) {
+        if fragment.yearLastImprovement == nil, let improved = date(feature, mapping.yearImproved, mapping),
+           improved != fragment.yearLastConstruction?.value {
+            // Only when it says something new. Arlington records a street rebuilt in one go as
+            // installed and replaced on the same day, and "built 5 Dec 2005, improved 5 Dec
+            // 2005" is two rows spent on one fact — the rule the drive card already follows.
             fragment.yearLastImprovement = Attributed(improved, provenance: provenance, confidence: confidence)
         }
         if fragment.trafficCount == nil, let aadt = number(feature, mapping.aadt, mapping), aadt > 0 {

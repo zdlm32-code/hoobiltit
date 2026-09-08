@@ -1523,3 +1523,61 @@ Pharr records a `MAINTENANCE_REPAIRS` treatment on segments with no `Repave_Date
 build of this profile duly showed *"Crack Sealing, undated"*. `ProfileMapping.work` now requires
 a date: the whole purpose of a work entry is to date the road, and an undated treatment tells a
 reader nothing they could not see by standing on it.
+
+---
+
+## 16. The other Texas metros — where a construction year actually exists
+
+Ten more cities probed. Two publish something the rest of this app almost never sees: **the year
+a street was built**, not the year it was last resurfaced.
+
+### Laredo — an actual `YEAR_BUILT`
+
+```
+https://services3.arcgis.com/h9QEFLHkUI1SIRs7/arcgis/rest/services/Pavement_Condition_Index/FeatureServer/0
+```
+
+10,627 segments with `YEAR_BUILT`, `OWNER`, `SURFTYPE`, `PCI_2019`, `PAVE_WIDTH`, `LANES` and
+`FROM_STRT`/`TO_STRT`. **1980 is a placeholder on 5,405 of them — 50.9%**, against a smooth ~2%
+per year across the other 53 values, so it is filtered exactly as San Antonio's `InstallDate` is.
+That leaves about 5,200 genuine construction years, and *Albany Dr, built 1993, City of Laredo,
+asphalt, PCI 55* is the kind of answer this app exists to give.
+
+`BRANCHNM` carries the assembled name (`ALBANY DR`); `FENAME` and `FETYPE` hold the parts
+separately and would need joining.
+
+### Arlington — installed *and* replaced, in the fields you would not pick
+
+```
+https://services.arcgis.com/jXi5GuMZwfCYtZP9/arcgis/rest/services/COA_Street_Custodian/FeatureServer/0
+```
+
+17,359 segments carrying **two** dates, which almost nothing does. The trap is the field names.
+`Built` and `Reconstructed` exist on every row and are **null on every row**; reading them gives
+a city-wide source that silently answers nothing. The populated fields are **`Installed`**
+(13,125) and **`Replaced`** (13,321).
+
+Each carries one bulk-loaded default: **`1908-06-09` on 2,209 `Installed` rows** and
+**`2008-06-12` on 1,370 `Replaced` rows** — single *exact dates*, against roughly 1,280 distinct
+values spread under 1% each. That exactness is the tell; a real distribution does not put a
+sixth of a city on one June day.
+
+`Custodian` names the responsible body — Arlington 12,984, State 1,264, and slivers of Pantego,
+Kennedale, Dalworthington Gardens, Mansfield and Grand Prairie.
+
+Arlington also records a street rebuilt in one go as installed *and* replaced on the same day, so
+`ProfileMapping` now drops an improvement date equal to the construction date — the rule the
+drive card already followed, applied where the data is read.
+
+### Checked and rejected
+
+| City | Why not |
+|---|---|
+| Fort Worth | `EB_Street_Sections` is 624 polygons with only a document-update date |
+| Lubbock | `CIP` holds 2 rows; `COL_Streets` 969 with no dates |
+| Irving | 9,133 centrelines with `OWNERSHIP` and `MAINTBY` but no construction date |
+| Corpus Christi, Plano, Garland, Frisco | no city street or pavement service found |
+| El Paso | searches resolve to TxDOT's own org, not a city one |
+
+Irving is the near miss and would be worth revisiting: ownership without a date still beats
+TxDOT's blanket municipal code, and the layer is city-wide.

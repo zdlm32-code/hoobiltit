@@ -311,6 +311,33 @@ print(";".join(f"{c}={n}" for c,n in sorted(new,key=lambda t:-t[1])) if new else
 # The Rio Grande Valley profiles are six small agencies rather than one regional source, so they
 # fail independently and quietly. This checks each answers at all, and that Edinburg -- the only
 # one publishing a contractor and a cost anywhere in the app outside TxDOT -- still does.
+# Laredo and Arlington are the only two city sources publishing an actual construction year, and
+# both are half placeholder. If either share moves the filters are either discarding facts or
+# letting defaults through, and no test can see it because the fixtures are frozen.
+check_metro_sentinels() {
+  echo "=== Laredo / Arlington placeholder dates (ENDPOINTS.md 16)"
+  local lar
+  lar=$(curl -s -m 60 "https://services3.arcgis.com/h9QEFLHkUI1SIRs7/arcgis/rest/services/Pavement_Condition_Index/FeatureServer/0/query?where=YEAR_BUILT%3D1980&returnCountOnly=true&f=json" \
+    | python3 -c 'import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print("err"); raise SystemExit
+print(d.get("count","err") if "error" not in d else "err")')
+  local arl
+  arl=$(curl -s -m 60 "https://services.arcgis.com/jXi5GuMZwfCYtZP9/arcgis/rest/services/COA_Street_Custodian/FeatureServer/0/query?where=Installed%20%3D%20timestamp%20%271908-06-09%2000%3A00%3A00%27&returnCountOnly=true&f=json" \
+    | python3 -c 'import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print("err"); raise SystemExit
+print(d.get("count","err") if "error" not in d else "err")')
+  echo "  Laredo YEAR_BUILT=1980 -> ${lar:-?} (was 5405 of 10627)"
+  echo "  Arlington Installed=1908-06-09 -> ${arl:-?} (was 2209 of 17359)"
+  if [[ "$lar" =~ ^[0-9]+$ ]] && [ "$lar" -gt 3000 ] && [[ "$arl" =~ ^[0-9]+$ ]] && [ "$arl" -gt 1000 ]; then
+    echo "  OK: both placeholders still dominate; the nullNumbers filters are earning their keep."
+  else
+    echo "  CHANGED: a placeholder share moved -- re-read ENDPOINTS.md 16 before trusting the dates."
+  fi
+  echo
+}
+
 check_rgv() {
   echo "=== Rio Grande Valley sources (ENDPOINTS.md 15)"
   local ok=1
@@ -372,4 +399,5 @@ else
   check_sanantonio_sentinels
   check_dallas_rehab_types
   check_rgv
+  check_metro_sentinels
 fi

@@ -289,8 +289,18 @@ public enum CodeTables {
             return .federal(agency: raw)
         }
         // A layer that shouts its values reads badly as prose: "maintained by MERCEDES".
+        // "CITY OF LAREDO" title-cases to "City Of Laredo" without this; a connector word
+        // inside a name stays lowercase in English.
+        let connectors: Set<String> = ["of", "and", "the", "at", "on", "de", "del", "la"]
         let cased = raw == upper && raw.count > 3
             ? raw.capitalized(with: Locale(identifier: "en_US"))
+                .split(separator: " ", omittingEmptySubsequences: false)
+                .enumerated()
+                .map { index, word in
+                    index > 0 && connectors.contains(word.lowercased())
+                        ? word.lowercased() : String(word)
+                }
+                .joined(separator: " ")
             : raw
         // Everything else is a named local body. `municipality` is approximate for a port or
         // development authority, but the case only decides the wording around the name, and

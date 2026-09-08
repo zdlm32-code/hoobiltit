@@ -443,6 +443,104 @@
       },
       "_comment": "346 annexation tracts covering the city, Year 1927-2023, Annex_Date on 337 and Ord_no on 340 (the oldest reads CHARTER). McAllen is the largest Rio Grande Valley city and publishes no street inventory, no pavement layer and no capital-project register; its Subdivision_Master carries a Developer name but holds only 40 polygons, too few to be worth a profile. Annexation is not a construction date and the app never shows it as one - it renders in the paper trail beside the plat - but it bounds when the streets in a tract could have gone in, and it is the only dated fact the city publishes. Annex_Date is negative epoch milliseconds before 1970, which the accessor handles.",
       "dateCaveat": "McAllen publishes no street or project records; what is shown is when the city annexed the land, which is not when the road was built."
+    },
+    "4841464": {
+      "id": "tx.laredo.pavement",
+      "displayName": "City of Laredo pavement inventory",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services3.arcgis.com/h9QEFLHkUI1SIRs7/arcgis/rest/services/Pavement_Condition_Index/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "BRANCHNM",
+        "OWNER",
+        "YEAR_BUILT",
+        "SURFTYPE",
+        "PCI_2019",
+        "PAVE_WIDTH",
+        "LANES",
+        "FROM_STRT",
+        "TO_STRT",
+        "CONDITION"
+      ],
+      "fields": {
+        "name": [
+          "BRANCHNM"
+        ],
+        "ownership": "OWNER",
+        "ownershipTable": "namedAgency",
+        "yearBuilt": "YEAR_BUILT",
+        "yearEncoding": "yearNumber",
+        "surface": "SURFTYPE",
+        "condition": "CONDITION",
+        "conditionIndex": "PCI_2019",
+        "widthFeet": "PAVE_WIDTH",
+        "crossStreetFrom": "FROM_STRT",
+        "crossStreetTo": "TO_STRT",
+        "nullNumbers": [
+          0,
+          1980
+        ],
+        "nullStrings": [
+          "",
+          "UNKNOWN",
+          "N/A",
+          "TBD"
+        ]
+      },
+      "_comment": "10627 segments, and one of very few sources anywhere publishing an actual YEAR_BUILT rather than a resurfacing date. 1980 is a placeholder on 5405 of them - 50.9%, against a smooth 2%-per-year spread across the other 53 distinct values - so it is filtered, the same call made for San Antonio's InstallDate. That leaves about 5200 genuine construction years. OWNER is 'CITY OF LAREDO' on every row. BRANCHNM is the assembled name ('ALBANY DR'); FENAME and FETYPE hold the parts separately and would need joining.",
+      "dateCaveat": "Laredo publishes a construction year for about half its streets; the other half carry a 1980 placeholder the app discards rather than shows."
+    },
+    "4804000": {
+      "id": "tx.arlington.pavement",
+      "displayName": "City of Arlington pavement inventory",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services.arcgis.com/jXi5GuMZwfCYtZP9/arcgis/rest/services/COA_Street_Custodian/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "Street",
+        "Custodian",
+        "Installed",
+        "Replaced",
+        "PavementClassification",
+        "FunctionalClassification",
+        "EstimatedOCI",
+        "Width",
+        "NumberofLanes",
+        "Subdivision"
+      ],
+      "fields": {
+        "name": [
+          "Street"
+        ],
+        "ownership": "Custodian",
+        "ownershipTable": "namedAgency",
+        "ownerNames": {
+          "Arlington": "City of Arlington",
+          "State": "Texas Department of Transportation"
+        },
+        "yearBuilt": "Installed",
+        "yearImproved": "Replaced",
+        "yearEncoding": "epochMilliseconds",
+        "functionalClass": "FunctionalClassification",
+        "surface": "PavementClassification",
+        "conditionIndex": "EstimatedOCI",
+        "widthFeet": "Width",
+        "nullNumbers": [
+          0,
+          -1942790400000,
+          1213228800000
+        ],
+        "nullStrings": [
+          "",
+          "UNKNOWN",
+          "N/A",
+          "TBD"
+        ]
+      },
+      "_comment": "17359 segments carrying BOTH an install and a reconstruction date, which almost nothing else does. The fields named Built and Reconstructed are entirely null on every row and are NOT the ones to read; Installed (13125 populated) and Replaced (13321) are. Each carries one bulk-loaded default: 1908-06-09 on 2209 Installed rows and 2008-06-12 on 1370 Replaced rows, single exact dates against roughly 1280 distinct values spread under 1% each, so both epochs are filtered. Custodian names the responsible body and covers slivers of Pantego, Kennedale, Dalworthington Gardens, Mansfield and Grand Prairie as well as Arlington's own 12984.",
+      "dateCaveat": "Arlington records when a street was installed and when it was last replaced; about a quarter of its segments carry neither."
     }
   }
 }
