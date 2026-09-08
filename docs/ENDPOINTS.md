@@ -990,7 +990,8 @@ annual HPMS submission — Louisiana's own layers are stamped `DataSource: "2024
 
 **Nothing else standardises.** Not field names, not value encoding (`4` vs `"04-Municipal or
 City Hwy Agency"` vs `"DOT-Arizona Department of Transportation"`), and not route id formats.
-**No service publishes coded-value domains** — ADOT layer 29, Iowa, TxDOT, Louisiana and PennDOT
+**Almost no service publishes coded-value domains.** NCDOT is the single exception found in this
+whole survey (§18). Every other one — ADOT layer 29, Iowa, TxDOT, Louisiana and PennDOT
 all return `domain: null`, and TxDOT says `ADMIN: NO DOMAIN` outright. The decode tables have to
 ship with the app; the agency will not tell you what a `4` means.
 
@@ -1651,3 +1652,59 @@ Irving is the last Texas city with anything to add: 9,133 centrelines, **no cons
 any kind**, and an `OWNERSHIP` field naming CITY (5,934), STATE (2,182), **PRIVATE (820)** and
 slivers owned by DFW airport, Dallas and Coppell. TxDOT files every one of those as a bare
 municipal code, so naming the body — and the 820 private streets — is the whole contribution.
+
+---
+
+## 18. North Carolina — the richest state inventory, and the only documented one
+
+```
+https://gis11.services.ncdot.gov/arcgis/rest/services/NCDOT_RoadCharacteristicsQtr/MapServer/0
+```
+
+**1,201,628 segments**, and the best-populated state source found anywhere:
+
+| Field | Populated |
+|---|---|
+| `StreetName` | 1,166,779 (97%) |
+| `SrfcType` | 918,124 (76%) |
+| `AddDate` | 596,386 |
+| **`ImprvDate`** + `ImprvType` | **473,065 (39%)** |
+| `OwnerName` | 297,234, naming **1,049 distinct bodies** |
+
+### NCDOT publishes its domains, which nothing else does
+
+Every other agency in this document had its vocabulary *derived* — TxDOT's `ADMIN` by
+cross-tabbing against `HSYS`, Dallas's `rehab_type` by inspection, ADOT's by parsing a string.
+NCDOT ships coded-value domains on `ImprvType`, `OwnerType`, `FuncClass`, `SrfcType` and
+`RouteClass`, so `CodeTables.ncdotImprovement` quotes the agency instead of guessing at it:
+`NR` New Construction, `RE` Reconstruction, `MA`/`MI` Major/Minor Widening, `NL` Relocation,
+`BR` Bridge Replacement, `IP` Initial Paving, `RS` Resurfacing, `SI` Surface Improvement.
+`OwnerType` is plain HPMS and `FuncClass` plain FHWA, both already shipped.
+
+### Ownership needs two rules, because it lives in three fields
+
+`OwnerType` gives the level and `OwnerName` the body — `4` and `Charlotte` — so a card can say
+**Charlotte** rather than "city or municipal highway agency". But NCDOT declares *its own*
+maintenance somewhere else entirely: `RouteMaintCode = System`, on **607,062 segments that name
+no owner at all**. Reading that blank as "state" would be inferring from silence where the agency
+has published an answer, so `FieldMapping.ownershipRules` tries the named body first and the
+maintenance declaration second. The correlation is near-total: of 607,156 `System` segments,
+607,062 name no other owner.
+
+### No sentinel, for once
+
+`ImprvDate` is **1,872 distinct dates with the largest at 4.0%** and no future values. After San
+Antonio (96% placeholder), Laredo (50.9%) and Arlington (two bulk-loaded dates), this is the
+first date field in the survey that needs no filter — and the test says so, so that a filter
+appearing later has to be a deliberate edit.
+
+### The national HPMS is not public
+
+`geo.dot.gov` carries `HPMS_Public_Release` and `ARNOLD_Inventory_HPMS`, which would give
+ownership for every road in the country in one profile. Both return **`499 Token Required`**.
+That settles the architecture: there is no national ownership layer to be had without a key, and
+state-by-state is not a stopgap.
+
+Also probed and rejected this round: **Florida** (`RCI_Layers` exposes a name and almost nothing
+else through its MapServer), **Washington** (`HpmsSegments`, 3,176 rows), **California** (a
+`CHhighway` folder with one service), **New York, Ohio, Michigan** (servers unreachable).

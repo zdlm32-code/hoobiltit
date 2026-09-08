@@ -71,6 +71,12 @@ public enum ProfileMapping {
     /// likeliest guess. An unrecognised code means the app does not know who owns this road,
     /// and `RoadOwner` has a case that says exactly that.
     public static func owner(_ feature: ArcGISFeature, _ mapping: FieldMapping) -> RoadOwner? {
+        if let rules = mapping.ownershipRules {
+            for rule in rules {
+                if let owner = self.owner(feature, rule: rule, mapping) { return owner }
+            }
+            return nil
+        }
         guard let field = mapping.ownership else { return nil }
         // Read before the numeric decode: this field holds "Bexar County", not a code, and
         // `CodeTables.code` would take the leading digits of a name and invent an owner.
@@ -95,9 +101,37 @@ public enum ProfileMapping {
         case .penndotJurisdiction:  return CodeTables.owner(penndot: code)
         case .txdotAdmin:           return CodeTables.owner(txdot: code)
         case .fhwaFunctionalClass, .dallasRehabType, .namedAgency, .dallasMaintenance,
-             .adotOwnership, .none:
+             .adotOwnership, .ncdotImprovement, .none:
             return nil
         }
+    }
+
+    /// One rule's answer, or nil so the next may try.
+    static func owner(_ feature: ArcGISFeature, rule: OwnershipRule,
+                      _ mapping: FieldMapping) -> RoadOwner? {
+        var kind: RoadOwner?
+        if rule.table == .namedAgency {
+            guard var text = feature[rule.field].text, !mapping.isNull(text) else { return nil }
+            if let renamed = rule.names?[text] {
+                guard !renamed.isEmpty else { return nil }
+                text = renamed
+            }
+            kind = CodeTables.owner(named: text)
+        } else if rule.table == .adotOwnership {
+            kind = feature[rule.field].text.flatMap { CodeTables.owner(adot: $0) }
+        } else if rule.table == .hpmsOwnership {
+            kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(hpms: $0) }
+        } else if rule.table == .penndotJurisdiction {
+            kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(penndot: $0) }
+        } else if rule.table == .txdotAdmin {
+            kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(txdot: $0) }
+        }
+        guard let kind else { return nil }
+        // The code gave the level; a name field, where the layer has one, gives the body.
+        guard let nameField = rule.nameField,
+              let body = feature[nameField].text, !mapping.isNull(body)
+        else { return kind }
+        return kind.renamed(to: body)
     }
 
     public static func functionalClass(_ feature: ArcGISFeature, _ mapping: FieldMapping) -> String? {
@@ -117,9 +151,10 @@ public enum ProfileMapping {
     /// Requires a type: a bare condition score with nothing it describes is not worth a row on
     /// the card, and `SurfaceDescription.type` is non-optional for that reason.
     public static func surface(_ feature: ArcGISFeature, _ mapping: FieldMapping) -> SurfaceDescription? {
-        guard let field = mapping.surface, let type = feature[field].text,
-              !mapping.isNull(type)
+        guard let field = mapping.surface, let published = feature[field].text,
+              !mapping.isNull(published)
         else { return nil }
+        let type = mapping.surfaceNames?[published] ?? published
         return SurfaceDescription(
             type: type,
             widthFeet: number(feature, mapping.widthFeet, mapping).map { Int($0) },
@@ -135,8 +170,9 @@ public enum ProfileMapping {
     public static func work(_ feature: ArcGISFeature, _ mapping: FieldMapping,
                             now: Date = Date()) -> RoadWork? {
         guard let typeField = mapping.workType,
-              let title = feature[typeField].text, !mapping.isNull(title)
+              let published = feature[typeField].text, !mapping.isNull(published)
         else { return nil }
+        var title = published
         // A pavement survey codes what was done and the code decides; a capital-project
         // register does not, because every row in it is a project. `workKindDefault` is how a
         // profile says which of the two it is.
@@ -145,6 +181,11 @@ public enum ProfileMapping {
         case .dallasRehabType:
             guard let decoded = CodeTables.workKind(dallas: title) else { return nil }
             kind = decoded
+        case .ncdotImprovement:
+            // The layer stores a two-letter code; the agency's own domain spells it out.
+            guard let decoded = CodeTables.work(ncdot: title) else { return nil }
+            title = decoded.label
+            kind = decoded.kind
         default:
             guard let declared = mapping.workKindDefault else { return nil }
             kind = declared

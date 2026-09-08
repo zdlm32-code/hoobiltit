@@ -245,6 +245,80 @@
       ],
       "dateCaveat": "Louisiana publishes a construction year for its own control sections, not for local streets.",
       "_comment": "Layer 49 'Louisiana Roadways' is 576063 features statewide and does include residential streets, so name and owner reach local roads here. Layer 91 is listed before layer 49's own Ownership copy on purpose: the two disagree — Balis Dr reads Ownership 2 on 49 and 4 on 91 — and 91 is the dedicated HPMS event table with measures. Layer 3 'Local Road Names' is empty; do not wire it. RouteID runs two namespaces in one service: '013-04-1-010' for control sections and '033900412201591020' for local roads. Compare raw, never parse."
+    },
+    "37": {
+      "id": "nc.ncdot",
+      "displayName": "NCDOT road characteristics",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://gis11.services.ncdot.gov/arcgis/rest/services/NCDOT_RoadCharacteristicsQtr/MapServer",
+      "layer": 0,
+      "outFields": [
+        "StreetName",
+        "RouteName",
+        "OwnerType",
+        "OwnerName",
+        "RouteMaintCode",
+        "FuncClass",
+        "SrfcType",
+        "SrfcWidth",
+        "AADT",
+        "ImprvType",
+        "ImprvDate",
+        "ThruLaneCount"
+      ],
+      "fields": {
+        "name": [
+          "StreetName",
+          "RouteName"
+        ],
+        "ownershipRules": [
+          {
+            "field": "OwnerType",
+            "table": "hpmsOwnership",
+            "nameField": "OwnerName"
+          },
+          {
+            "field": "RouteMaintCode",
+            "table": "namedAgency",
+            "names": {
+              "System": "North Carolina Department of Transportation",
+              "Non-System": ""
+            }
+          }
+        ],
+        "functionalClass": "FuncClass",
+        "functionalClassTable": "fhwaFunctionalClass",
+        "surface": "SrfcType",
+        "widthFeet": "SrfcWidth",
+        "aadt": "AADT",
+        "workType": "ImprvType",
+        "workTypeTable": "ncdotImprovement",
+        "workYear": "ImprvDate",
+        "yearEncoding": "epochMilliseconds",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          "UNKNOWN",
+          "N/A",
+          "TBD",
+          "None"
+        ],
+        "surfaceNames": {
+          "Bitum": "Bituminous",
+          "JPCP": "Jointed plain concrete",
+          "CRCP": "Continuously reinforced concrete",
+          "AC_AC": "Asphalt over asphalt",
+          "AC_JCP": "Asphalt over jointed concrete",
+          "AC_CRCP": "Asphalt over continuously reinforced concrete",
+          "UJC_PCC": "Unbonded concrete overlay",
+          "BPCC_PCC": "Bonded concrete overlay"
+        }
+      },
+      "_comment": "1201628 segments, the richest state inventory found: StreetName on 1166779 (97%), SrfcType on 918124, ImprvDate on 473065 and OwnerName on 297234 naming 1049 bodies from Charlotte down. NCDOT is also the ONLY agency probed anywhere that publishes coded-value domains, so ImprvType, OwnerType, FuncClass and SrfcType are decoded from the agency's own words rather than inferred - see CodeTables.ncdotImprovement. Ownership needs two rules because the level and the body live in OwnerType and OwnerName while NCDOT's own maintenance is declared in a third field, RouteMaintCode = System, on 607062 segments naming no owner at all; reading a blank as 'state' would be a guess where the agency published an answer. ImprvDate is clean - 1872 distinct dates, the largest 4.0% - so unlike San Antonio, Laredo and Arlington it needs no sentinel filter.",
+      "dateCaveat": "NCDOT records the last improvement on about 470,000 of its 1.2 million road segments, and what kind of work it was."
     }
   },
   "counties": {

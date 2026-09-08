@@ -57,6 +57,8 @@ public enum CodeTableReference: String, Sendable, Codable {
     case dallasMaintenance
     /// ADOT's `Ownership_Value`, which names the body and carries its HPMS code.
     case adotOwnership
+    /// NCDOT `ImprvType`, the one vocabulary an agency actually documents.
+    case ncdotImprovement
 }
 
 /// How a year is stored. Verified encodings: PennDOT writes a plain `1916`, ADOT a compact
@@ -65,6 +67,31 @@ public enum YearEncoding: String, Sendable, Codable {
     case yearNumber
     case compactString
     case epochMilliseconds
+}
+
+/// One way of reading ownership off a feature, tried in order.
+///
+/// A single field is the normal case, but not the only one. NCDOT publishes the level and the
+/// body in `OwnerType` and `OwnerName` — `4` and `Charlotte` — and says NCDOT itself maintains a
+/// road through a *third* field, `RouteMaintCode = System`, on 607,062 segments that name no
+/// owner at all. One field cannot express that, and inferring "state" from a blank would be a
+/// guess where the agency has published an answer.
+public struct OwnershipRule: Sendable, Codable, Hashable {
+    public var field: String
+    public var table: CodeTableReference?
+    /// Names the body to pair with the kind the code gives, so `4` + `Charlotte` reads as
+    /// Charlotte rather than "city or municipal highway agency".
+    public var nameField: String?
+    /// Rewrites a value before it is classified. An empty string declines.
+    public var names: [String: String]?
+
+    public init(field: String, table: CodeTableReference? = nil,
+                nameField: String? = nil, names: [String: String]? = nil) {
+        self.field = field
+        self.table = table
+        self.nameField = nameField
+        self.names = names
+    }
 }
 
 /// The field names one layer uses for the facts the app reports.
@@ -85,6 +112,8 @@ public struct FieldMapping: Sendable, Codable, Hashable {
     /// Mapping to an empty string makes the source decline, which is how a city layer says a
     /// street is outside its own jurisdiction.
     public var ownerNames: [String: String]?
+    /// Tried in order, first that yields an owner wins. Takes precedence over `ownership`.
+    public var ownershipRules: [OwnershipRule]?
     public var yearBuilt: String?
     public var yearImproved: String?
     public var yearEncoding: YearEncoding?
@@ -116,6 +145,9 @@ public struct FieldMapping: Sendable, Codable, Hashable {
     /// already carries a type, a width, a plain-English rating and a 0-100 index because
     /// Maricopa publishes all four.
     public var surface: String?
+    /// Rewrites a surface value the layer abbreviates. NCDOT stores `Bitum` and documents it
+    /// as `Bituminous`; the abbreviation reads as a truncation on a card.
+    public var surfaceNames: [String: String]?
     /// The agency's own plain-English rating — Dallas's `blend_cond` is A through F.
     public var condition: String?
     /// A 0-100 condition index, e.g. Dallas's blended PCI or San Antonio's PCI.

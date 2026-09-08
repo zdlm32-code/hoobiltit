@@ -52,6 +52,22 @@ public enum RoadOwner: Sendable, Hashable, Codable {
     /// The jurisdiction resolved but no source claims maintenance. Distinct from a failure.
     case undetermined
 
+    /// The same kind of owner, named. For a layer that publishes the level and the body in
+    /// separate fields: NCDOT writes `OwnerType = 4` and `OwnerName = Charlotte`, and the code
+    /// alone would render that as "city or municipal highway agency".
+    public func renamed(to body: String) -> RoadOwner {
+        switch self {
+        case .county:        return .county(agency: body)
+        case .countyCourtesy: return .countyCourtesy(agency: body)
+        case .municipality:  return .municipality(name: body, fullName: body)
+        case .state:         return .state(agency: body)
+        case .federal:       return .federal(agency: body)
+        case .tribal:        return .tribal(agency: body)
+        case .tollAuthority: return .tollAuthority(agency: body)
+        case .privateOwner, .notPubliclyMaintained, .undetermined: return self
+        }
+    }
+
     /// True when the maintaining agency has not accepted ownership, which changes what the
     /// app should point the user at.
     public var isCourtesyMaintained: Bool {

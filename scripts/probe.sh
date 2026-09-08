@@ -371,6 +371,33 @@ print(d.get("count","err") if "error" not in d else "err")')
   echo
 }
 
+# NCDOT is the only agency in this survey that publishes coded-value domains, so its vocabulary
+# is quoted rather than derived. If it stops publishing them, or adds an ImprvType the app does
+# not know, a real construction class silently stops counting as one.
+check_ncdot_domains() {
+  echo "=== NCDOT published domains (ENDPOINTS.md 18)"
+  local out
+  out=$(curl -s -m 60 "https://gis11.services.ncdot.gov/arcgis/rest/services/NCDOT_RoadCharacteristicsQtr/MapServer/0?f=json" \
+    | python3 -c '
+import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print("err"); raise SystemExit
+known={"NR","RE","MA","MI","NL","BR","IP","RS","SI","OT"}
+imp=[f for f in d.get("fields",[]) if f["name"]=="ImprvType"]
+if not imp or not imp[0].get("domain"): print("nodomain"); raise SystemExit
+codes={str(c["code"]) for c in imp[0]["domain"].get("codedValues",[])}
+new=sorted(codes-known)
+print("new:"+",".join(new) if new else "ok")')
+  echo "  ImprvType domain -> ${out:-?}"
+  case "$out" in
+    ok)       echo "  OK: every published improvement code is in the shipped table." ;;
+    nodomain) echo "  CHANGED: NCDOT stopped publishing the domain -- the table is now a guess." ;;
+    err)      echo "  INCONCLUSIVE: the request failed; re-run before drawing any conclusion." ;;
+    *)        echo "  CHECK: decide whether these built a road, and update CodeTables." ;;
+  esac
+  echo
+}
+
 # Feature count for a query URL, or the string "err" if the request did not come back.
 count() {
   curl -s -m 25 --retry 3 --retry-delay 1 --retry-all-errors "$1" | python3 -c '
@@ -400,4 +427,5 @@ else
   check_dallas_rehab_types
   check_rgv
   check_metro_sentinels
+  check_ncdot_domains
 fi

@@ -2,7 +2,10 @@ import Foundation
 
 /// Decode tables for the coded values state DOTs publish.
 ///
-/// **No service publishes its own domains.** Every layer checked — ADOT layer 29, Iowa, TxDOT,
+/// **Almost no service publishes its own domains.** NCDOT is the sole exception found, and it
+/// publishes them for `ImprvType`, `OwnerType`, `FuncClass`, `SrfcType` and `RouteClass` — see
+/// `ncdotImprovement`, the one table here that is quoted rather than derived. Every other layer
+/// checked — ADOT layer 29, Iowa, TxDOT,
 /// Louisiana, PennDOT — returns `domain: null` on its ownership field, and TxDOT says
 /// `ADMIN: NO DOMAIN` outright. So the meaning of a `4` has to ship with the app; the agency
 /// will not tell you.
@@ -279,7 +282,8 @@ public enum CodeTables {
 
         if upper.hasSuffix(" COUNTY") { return .county(agency: raw) }
         if upper == "PRIVATE" || upper == "PROPERTY OWNER" { return .privateOwner }
-        if upper == "TXDOT" || upper == "STATE" || upper.hasPrefix("STATE ") {
+        if upper == "TXDOT" || upper == "STATE" || upper.hasPrefix("STATE ")
+            || upper.contains("DEPARTMENT OF TRANSPORTATION") {
             return .state(agency: raw == "TxDOT" ? "Texas Department of Transportation" : raw)
         }
         // Military installations, which a metro street layer carries a surprising number of.
@@ -425,6 +429,30 @@ public enum CodeTables {
         // 40 "other public instrumentality" and 80 "other" name a category, not a body.
         default:                     return nil
         }
+    }
+
+    // MARK: - NCDOT improvement type
+
+    /// NCDOT `ImprvType`, and the first vocabulary in this app that did not have to be
+    /// derived: **NCDOT publishes coded-value domains**, which nothing else probed does.
+    /// The meanings below are the agency's own words, not an inference from correlation.
+    public static let ncdotImprovement: [String: (label: String, kind: RoadWorkKind)] = [
+        "NR": ("New Construction", .built),
+        "RE": ("Reconstruction", .built),
+        "MA": ("Major Widening", .built),
+        "MI": ("Minor Widening", .built),
+        "NL": ("Relocation", .built),
+        "BR": ("Bridge Replacement", .built),
+        "IP": ("Initial Paving", .built),
+        "RS": ("Resurfacing", .maintained),
+        "SI": ("Surface Improvement", .maintained),
+        "OT": ("Other", .ancillary),
+    ]
+
+    public static func work(ncdot code: String?) -> (label: String, kind: RoadWorkKind)? {
+        guard let code = code?.trimmingCharacters(in: .whitespacesAndNewlines), !code.isEmpty
+        else { return nil }
+        return ncdotImprovement[code.uppercased()]
     }
 
     // MARK: - Lookup
