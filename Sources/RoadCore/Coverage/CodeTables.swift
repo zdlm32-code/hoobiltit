@@ -337,15 +337,21 @@ public enum CodeTables {
         return dallasMaintenance[raw]
     }
 
-    // MARK: - Dallas pavement work
+    // MARK: - Pavement treatments
 
-    /// City of Dallas `rehab_type`, a 21-value vocabulary over 38,564 street segments.
+    /// What a pavement treatment did, from the plain English cities write it in.
+    ///
+    /// Shared rather than per-city because the vocabularies overlap almost entirely: Dallas
+    /// writes `Street Reconstruction` and `Slurry Seal`, Denver writes `Reconstruct`, `Full
+    /// Depth Paving`, `Mill and Overlay` and `Chip Seal`. The same words decide the same way.
+    ///
+    /// Originally Dallas's `rehab_type`, a 21-value vocabulary over 38,564 street segments.
     ///
     /// The same build-versus-maintain judgement `PROJ_CLASS` needs, and the same reason for
     /// making it: `Slurry Seal` covers 6,549 segments and `Street Reconstruction` 6,577, so
     /// getting it wrong would mis-answer roughly half the city. `None`, on 11,007 segments,
     /// means no recorded work rather than an unknown kind, and yields no entry at all.
-    public static func workKind(dallas rehabType: String?) -> RoadWorkKind? {
+    public static func workKind(pavementTreatment rehabType: String?) -> RoadWorkKind? {
         guard let raw = rehabType?.trimmingCharacters(in: .whitespacesAndNewlines),
               !raw.isEmpty, raw != "None"
         else { return nil }
@@ -481,6 +487,45 @@ public enum CodeTables {
         guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
         else { return nil }
         return ohioJurisdiction[raw.uppercased()]
+    }
+
+    // MARK: - MassDOT jurisdiction
+
+    /// MassDOT `JURISDICTN`, the second published domain found in this survey.
+    ///
+    /// Eighteen documented values over 409,586 statewide segments, and unusually complete: it
+    /// separates the Department of Conservation and Recreation, Massport, four branches of the
+    /// military, the Army Corps and the Bureau of Indian Affairs.
+    ///
+    /// Two are worth more than the rest. `H` marks a road **private**, and `0` marks one
+    /// **unaccepted by its city or town** — 120,329 segments, a fifth of the state. That is the
+    /// same distinction Maricopa draws with `countyCourtesy`: somebody may plough it, but no
+    /// public body has taken it on, and the developer who laid it is the real answer to who
+    /// built it.
+    public static func owner(massdot code: String?) -> RoadOwner? {
+        guard let raw = code?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+        else { return nil }
+        switch raw.uppercased() {
+        case "1":  return .state(agency: "Massachusetts Department of Transportation")
+        case "2":  return .municipality(name: "City or town", fullName: "City or town")
+        case "0":  return .notPubliclyMaintained
+        case "H":  return .privateOwner
+        case "3":  return .state(agency: "Department of Conservation and Recreation")
+        case "5":  return .state(agency: "Massachusetts Port Authority")
+        case "6":  return .state(agency: "State park or forest")
+        case "7":  return .state(agency: "State institutional")
+        case "B":  return .state(agency: "State college or university")
+        case "9":  return .county(agency: "County institutional")
+        case "8":  return .federal(agency: "Federal park or forest")
+        case "C":  return .federal(agency: "US Air Force")
+        case "D":  return .federal(agency: "US Army Corps of Engineers")
+        case "E":  return .federal(agency: "Federal institutional")
+        case "F":  return .federal(agency: "Other federal agency")
+        case "I":  return .federal(agency: "US Army")
+        case "J":  return .federal(agency: "US Navy")
+        case "G":  return .tribal(agency: "Bureau of Indian Affairs")
+        default:   return nil
+        }
     }
 
     // MARK: - Lookup

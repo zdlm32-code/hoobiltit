@@ -360,6 +360,62 @@
       },
       "_comment": "402947 segments with a jurisdiction on every one and a real street name on 379684 (94%). This is NOT the Ohio layer rejected in section 10.3: that one was 58127 rows whose LAST_CONST was the 1900-01-01 placeholder, on a server that now 404s. This one publishes no construction date at all - PERP_YEAR is the dataset's own vintage, 2022 on 100% of rows, and RESURFACE_ covers 9228 segments across only 2020-2022 - so nothing dated is mapped rather than dressing up a publication year as a build year. The name is stored in three fields and needs joining. SURFACE_TY is single undocumented letters (G on 64%) and is deliberately not read.",
       "dateCaveat": "Ohio publishes who is responsible for each road but no construction or resurfacing history."
+    },
+    "25": {
+      "id": "ma.massdot",
+      "displayName": "MassDOT road inventory",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services1.arcgis.com/hGdibHYSPO59RG1h/arcgis/rest/services/MassDOTRoads_gdb/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "STREETNAME",
+        "STREET_NAME",
+        "JURISDICTN",
+        "F_CLASS",
+        "SURFACE_TP",
+        "SURFACE_WD",
+        "AADT",
+        "NUM_LANES",
+        "CITY",
+        "SPEED_LIM"
+      ],
+      "fields": {
+        "name": [
+          "STREETNAME",
+          "STREET_NAME"
+        ],
+        "ownership": "JURISDICTN",
+        "ownershipTable": "massdotJurisdiction",
+        "functionalClass": "F_CLASS",
+        "functionalClassTable": "fhwaFunctionalClass",
+        "surface": "SURFACE_TP",
+        "surfaceNames": {
+          "1": "Unimproved or graded earth",
+          "2": "Gravel or stone",
+          "3": "Brick",
+          "4": "Block",
+          "5": "Surface-treated",
+          "6": "Bituminous concrete",
+          "7": "Portland cement concrete",
+          "8": "Composite, flexible over rigid",
+          "9": "Composite, rigid over flexible",
+          "10": "Stone dust",
+          "11": "Boardwalk"
+        },
+        "widthFeet": "SURFACE_WD",
+        "aadt": "AADT",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "409586 statewide segments, and the SECOND agency in this survey to publish coded-value domains - thirty of them, including JURISDICTN and SURFACE_TP. Its jurisdiction list is the most complete found anywhere: it separates the Department of Conservation and Recreation, Massport, four branches of the military, the Army Corps and the BIA. Two values carry real weight: H marks a road private, and 0 marks one 'unaccepted by city or town' on 120329 segments - a fifth of the state - which is the same distinction Maricopa draws with countyCourtesy and maps to notPubliclyMaintained. F_CLASS here is the FHWA scheme but skips 4, so the shipped table covers it. No construction or resurfacing date is published. Note the field is STREET_NAME here; Boston's clipped copy of the same schema truncates it to STREET_NAM, and naming a field the layer does not have makes the service reject the whole query with a 400 rather than ignoring it.",
+      "dateCaveat": "Massachusetts publishes who is responsible for each road, down to which are private or unaccepted, but no construction dates."
     }
   },
   "counties": {
@@ -434,7 +490,7 @@
         "crossStreetTo": "to_name",
         "workYear": "rehab_year",
         "workType": "rehab_type",
-        "workTypeTable": "dallasRehabType",
+        "workTypeTable": "pavementTreatment",
         "workLocation": "descr",
         "yearEncoding": "yearNumber",
         "nullNumbers": [
@@ -445,7 +501,7 @@
           "Unknown"
         ]
       },
-      "_comment": "38564 supersegments. rehab_year is populated on 27588 across 95 distinct years with NO dominant value — the largest is 2024 at 8.4% — so unlike San Antonio's InstallDate it needs no sentinel filtering. rehab_type is a 21-value vocabulary decoded by CodeTables.workKind(dallas:); 'None' on 11007 rows means no recorded work and yields no entry. maint_resp is 'City' on 38471 of 38564, so namedAgency reads it as a municipality; it is the level, not the body, which is the same amount PennDOT's JURIS=5 claims. The City of Dallas spans five counties, which is why this is keyed on place GEOID and not county FIPS.",
+      "_comment": "38564 supersegments. rehab_year is populated on 27588 across 95 distinct years with NO dominant value — the largest is 2024 at 8.4% — so unlike San Antonio's InstallDate it needs no sentinel filtering. rehab_type is a 21-value vocabulary decoded by CodeTables.workKind(pavementTreatment:), shared with Denver; 'None' on 11007 rows means no recorded work and yields no entry. maint_resp is 'City' on 38471 of 38564, so namedAgency reads it as a municipality; it is the level, not the body, which is the same amount PennDOT's JURIS=5 claims. The City of Dallas spans five counties, which is why this is keyed on place GEOID and not county FIPS.",
       "dateCaveat": "Dallas records when a street was last rebuilt or resurfaced, not when it was first built."
     },
     "4865000": {
@@ -784,6 +840,88 @@
       },
       "_comment": "9133 centrelines. Publishes no construction date of any kind - MODIFIEDDATE is a GIS edit stamp - and earns its place purely on ownership: OWNERSHIP names CITY 5934, STATE 2182, PRIVATE 820, plus slivers owned by DFW airport, Dallas and Coppell. TxDOT files every one of these as a bare municipal code, so naming the body is the whole contribution, and 820 private streets is a real answer TxDOT cannot give. MAINTBY is a 1/-1/-2 code with no published meaning and is not read.",
       "dateCaveat": "Irving publishes who owns each street but no construction or resurfacing dates."
+    },
+    "0820000": {
+      "id": "co.denver.pavement",
+      "displayName": "Denver pavement treatments",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services1.arcgis.com/zdB7qR0BtYrg0Xpl/arcgis/rest/services/Denver_Pavement_Treatments/FeatureServer",
+      "layer": 428,
+      "outFields": [
+        "GIS_FULLNAME",
+        "FROMNAME",
+        "TONAME",
+        "Jurisdiction",
+        "Maintenance",
+        "YR_LSTWK",
+        "PavementClassification",
+        "AsphaltType",
+        "EstimatedOCR",
+        "CCD_Treatment"
+      ],
+      "fields": {
+        "name": [
+          "GIS_FULLNAME"
+        ],
+        "ownershipRules": [
+          {
+            "field": "Maintenance",
+            "table": "namedAgency",
+            "names": {
+              "DENVER": "City and County of Denver",
+              "CDOT": "Colorado Department of Transportation",
+              "PRIVATE": "Private",
+              "DIA": "Denver International Airport"
+            }
+          },
+          {
+            "field": "Jurisdiction",
+            "table": "namedAgency",
+            "names": {
+              "DENVER": "City and County of Denver",
+              "CDOT": "Colorado Department of Transportation",
+              "Private": "Private"
+            }
+          }
+        ],
+        "surface": "PavementClassification",
+        "surfaceNames": {
+          "ASP": "Asphalt",
+          "CON": "Concrete",
+          "COM": "Composite",
+          "GRA": "Gravel",
+          "JCP": "Jointed concrete",
+          "JCP CBD": "Jointed concrete",
+          "JCP Bridge": "Jointed concrete (bridge deck)",
+          "JCP RRX": "Jointed concrete (rail crossing)",
+          "STR": "Surface treatment",
+          "STR_A": "Surface treatment",
+          "STR_C": "Surface treatment"
+        },
+        "conditionIndex": "EstimatedOCR",
+        "workType": "CCD_Treatment",
+        "workYear": "YR_LSTWK",
+        "yearEncoding": "yearNumber",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          "UNKNOWN",
+          "N/A",
+          "TBD",
+          "NONE"
+        ],
+        "workTypeTable": "pavementTreatment",
+        "workTypeNames": {
+          "HIPR": "Hot in-place recycling",
+          "GO Bond": "Bond-funded paving",
+          "Bond Reconstruct": "Bond-funded reconstruction"
+        }
+      },
+      "_comment": "29728 segments on layer 428, not 0. Jurisdiction and Maintenance both name the body, and Maintenance is the finer of the two - it separates DIA, Denver Parks and Recreation and Fairmount Cemetery from the city proper, and marks 1054 segments PRIVATE where Jurisdiction marks 2112. Read in that order for that reason. YR_LSTWK is the year the city last worked the segment: 24458 of 29728 (82%) across a smooth spread from the 1990s with no dominant value, so no sentinel filter is needed. It is maintenance, never construction - CCD_Treatment names the treatment - so workKindDefault is maintained. FROMNAME and TONAME are not mapped as cross streets: they run to whole sentences listing ramps and signals.",
+      "dateCaveat": "Denver records when it last worked on a street, not when the street was built."
     }
   }
 }

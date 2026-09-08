@@ -80,6 +80,9 @@ public enum ProfileMapping {
         guard let field = mapping.ownership else { return nil }
         // Read before the numeric decode: this field holds "Bexar County", not a code, and
         // `CodeTables.code` would take the leading digits of a name and invent an owner.
+        if mapping.ownershipTable == .massdotJurisdiction {
+            return feature[field].text.flatMap { CodeTables.owner(massdot: $0) }
+        }
         if mapping.ownershipTable == .ohioJurisdiction {
             return feature[field].text.flatMap { CodeTables.owner(ohio: $0) }
         }
@@ -103,8 +106,8 @@ public enum ProfileMapping {
         case .hpmsOwnership:        return CodeTables.owner(hpms: code)
         case .penndotJurisdiction:  return CodeTables.owner(penndot: code)
         case .txdotAdmin:           return CodeTables.owner(txdot: code)
-        case .fhwaFunctionalClass, .dallasRehabType, .namedAgency, .dallasMaintenance,
-             .adotOwnership, .ncdotImprovement, .ohioJurisdiction, .none:
+        case .fhwaFunctionalClass, .pavementTreatment, .namedAgency, .dallasMaintenance,
+             .adotOwnership, .ncdotImprovement, .ohioJurisdiction, .massdotJurisdiction, .none:
             return nil
         }
     }
@@ -126,6 +129,8 @@ public enum ProfileMapping {
             kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(hpms: $0) }
         } else if rule.table == .penndotJurisdiction {
             kind = CodeTables.code(feature[rule.field]).flatMap { CodeTables.owner(penndot: $0) }
+        } else if rule.table == .massdotJurisdiction {
+            kind = feature[rule.field].text.flatMap { CodeTables.owner(massdot: $0) }
         } else if rule.table == .ohioJurisdiction {
             kind = feature[rule.field].text.flatMap { CodeTables.owner(ohio: $0) }
         } else if rule.table == .txdotAdmin {
@@ -177,14 +182,14 @@ public enum ProfileMapping {
         guard let typeField = mapping.workType,
               let published = feature[typeField].text, !mapping.isNull(published)
         else { return nil }
-        var title = published
+        var title = mapping.workTypeNames?[published] ?? published
         // A pavement survey codes what was done and the code decides; a capital-project
         // register does not, because every row in it is a project. `workKindDefault` is how a
         // profile says which of the two it is.
         let kind: RoadWorkKind
         switch mapping.workTypeTable {
-        case .dallasRehabType:
-            guard let decoded = CodeTables.workKind(dallas: title) else { return nil }
+        case .pavementTreatment:
+            guard let decoded = CodeTables.workKind(pavementTreatment: title) else { return nil }
             kind = decoded
         case .ncdotImprovement:
             // The layer stores a two-letter code; the agency's own domain spells it out.

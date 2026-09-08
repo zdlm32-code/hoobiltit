@@ -47,19 +47,19 @@ struct CityProfileTests {
     func sealingIsNotBuilding() {
         // Slurry Seal covers 6,549 Dallas segments and Street Reconstruction 6,577, so getting
         // this backwards would mis-answer about half the city.
-        #expect(CodeTables.workKind(dallas: "Street Reconstruction") == .built)
-        #expect(CodeTables.workKind(dallas: "Panel Replace (1-25%)") == .built)
-        #expect(CodeTables.workKind(dallas: "Slurry Seal") == .maintained)
-        #expect(CodeTables.workKind(dallas: "Microsurfacing") == .maintained)
-        #expect(CodeTables.workKind(dallas: "Mill/Overlay (1-15% Patch)") == .maintained)
+        #expect(CodeTables.workKind(pavementTreatment: "Street Reconstruction") == .built)
+        #expect(CodeTables.workKind(pavementTreatment: "Panel Replace (1-25%)") == .built)
+        #expect(CodeTables.workKind(pavementTreatment: "Slurry Seal") == .maintained)
+        #expect(CodeTables.workKind(pavementTreatment: "Microsurfacing") == .maintained)
+        #expect(CodeTables.workKind(pavementTreatment: "Mill/Overlay (1-15% Patch)") == .maintained)
         // "None" is 11,007 segments and means no recorded work, not an unknown kind.
         // Both of these were misfiled as upkeep until probe.sh flagged them against the live
         // vocabulary; a full-depth rebuild is the most thorough work a city does to a street.
-        #expect(CodeTables.workKind(dallas: "Full-Depth Asphalt") == .built)
-        #expect(CodeTables.workKind(dallas: "Street Restoration") == .built)
-        #expect(CodeTables.workKind(dallas: "Alley Improvement") == .maintained)
-        #expect(CodeTables.workKind(dallas: "None") == nil)
-        #expect(CodeTables.workKind(dallas: nil) == nil)
+        #expect(CodeTables.workKind(pavementTreatment: "Full-Depth Asphalt") == .built)
+        #expect(CodeTables.workKind(pavementTreatment: "Street Restoration") == .built)
+        #expect(CodeTables.workKind(pavementTreatment: "Alley Improvement") == .maintained)
+        #expect(CodeTables.workKind(pavementTreatment: "None") == nil)
+        #expect(CodeTables.workKind(pavementTreatment: nil) == nil)
     }
 
     @Test("Dallas names the body, not just the level of government")

@@ -1758,3 +1758,66 @@ and which HPMS code 3 exists for. `P` is left unmapped: its rows carry blank str
 have no name to contribute either way.
 
 `SURFACE_TY` is single undocumented letters (`G` on 64%) and is deliberately not read.
+
+---
+
+## 20. Massachusetts and Denver — and what the big metros actually publish
+
+Fifteen more major metros probed. Most publish street centrelines with no ownership and no dates,
+which TIGER already covers. Two were worth shipping, and one of them turned out to be a state.
+
+### Massachusetts — the second agency that documents itself
+
+```
+https://services1.arcgis.com/hGdibHYSPO59RG1h/arcgis/rest/services/MassDOTRoads_gdb/FeatureServer/0
+```
+
+Found by accident: Boston's `City_of_Boston_Managed_Streets` is 10,861 segments carrying
+MassDOT's schema, which meant a statewide version existed. It does — **409,586 segments** — and
+MassGIS publishes **thirty coded-value domains**, making it the second self-documenting agency in
+this survey after NCDOT (§18).
+
+`JURISDICTN` is the most complete ownership list found anywhere: eighteen values separating the
+Department of Conservation and Recreation, Massport, four branches of the military, the Army
+Corps and the Bureau of Indian Affairs. Two carry real weight:
+
+- **`H` — Private.**
+- **`0` — "Unaccepted by city or town", on 120,329 segments, a fifth of the state.** Somebody may
+  plough it, but no public body has taken it on. That is the same distinction Maricopa draws with
+  `countyCourtesy`, and it maps to `notPubliclyMaintained`: the developer who laid the road is
+  the real answer to who built it.
+
+`SURFACE_TP` is a bare integer with a published domain — `6` on 185,085 segments is a bituminous
+concrete road. No construction dates are published.
+
+**A field name that does not exist fails the whole query.** Boston's clipped copy truncates
+`STREETNAME` to `STREET_NAM`; carrying that name over to the statewide profile made the service
+answer `400 Cannot perform query` and the source failed outright rather than merely missing a
+name. A test now checks the requested fields against the layer.
+
+### Denver — a year the city last touched the street
+
+```
+https://services1.arcgis.com/zdB7qR0BtYrg0Xpl/arcgis/rest/services/Denver_Pavement_Treatments/FeatureServer/428
+```
+
+Note **layer 428**, not 0. 29,728 segments, and both `Jurisdiction` and `Maintenance` name the
+body — `Maintenance` more finely, separating Denver International Airport, Denver Parks and
+Recreation and Fairmount Cemetery from the city proper, and marking 1,054 segments private. It is
+read first for that reason.
+
+`YR_LSTWK` is on **24,458 of 29,728 (82%)** across a smooth spread with no dominant value, so no
+sentinel filter. `CCD_Treatment` is mostly plain English — `Mill and Overlay`, `Chip Seal`,
+`Reconstruct` — which is why the Dallas classifier was generalised to
+`CodeTables.workKind(pavementTreatment:)` and now serves both cities: the same words decide the
+same way. `HIPR` (3,984 segments) is expanded to "hot in-place recycling".
+
+### Probed and not shipped
+
+| Metro | What it publishes |
+|---|---|
+| New York | `Centerline_view`, 122,269 segments — but `RWJURISDICTION` is **96% null**, so names only, which TIGER already gives |
+| Seattle | 1,020 services, none a centreline with ownership or dates |
+| Los Angeles | cool-pavement studies, no citywide inventory |
+| Chicago | search resolves to CMAP, the regional planning agency, not the city |
+| Boston | superseded by the statewide MassDOT layer above |

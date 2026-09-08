@@ -51,8 +51,9 @@ public enum CodeTableReference: String, Sendable, Codable {
     case txdotAdmin
     /// The field names the owner outright rather than coding it. See `CodeTables.owner(named:)`.
     case namedAgency
-    /// City of Dallas `rehab_type`. Classifies work, not ownership.
-    case dallasRehabType
+    /// Plain-English pavement treatments, as Dallas and Denver both publish them. Classifies
+    /// work, not ownership.
+    case pavementTreatment
     /// City of Dallas `maint_resp`, which names a level of government rather than a body.
     case dallasMaintenance
     /// ADOT's `Ownership_Value`, which names the body and carries its HPMS code.
@@ -61,6 +62,8 @@ public enum CodeTableReference: String, Sendable, Codable {
     case ncdotImprovement
     /// ODOT `JURISDICTI`, a single letter per level of government.
     case ohioJurisdiction
+    /// MassDOT `JURISDICTN`, eighteen documented values.
+    case massdotJurisdiction
 }
 
 /// How a year is stored. Verified encodings: PennDOT writes a plain `1916`, ADOT a compact
@@ -134,6 +137,9 @@ public struct FieldMapping: Sendable, Codable, Hashable {
     public var workYear: String?
     public var workType: String?
     public var workTypeTable: CodeTableReference?
+    /// Expands an abbreviation the layer stores. Denver writes `HIPR`, which is hot in-place
+    /// recycling and reads as noise on a card.
+    public var workTypeNames: [String: String]?
     /// The agency's own description of the extent, e.g. Dallas's "18400-18500 TIMBER OAKS DR".
     public var workLocation: String?
     /// What the work was, when the layer is a project register rather than a pavement survey
