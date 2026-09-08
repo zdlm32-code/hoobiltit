@@ -36,6 +36,12 @@ public struct RoadMapScreen: View {
     /// Persisted, because a driver who chose Night should not have to choose it again next
     /// trip. The project had no persistence at all before this.
     @AppStorage("driveAppearance") private var appearance: DriveAppearance = .auto
+    /// Whether the driving notice has been shown. Drive mode starts on its own at road speed,
+    /// so this is the one moment the app asks the user anything — see `DriveSafetyNotice`.
+    @AppStorage("didAcknowledgeDriveSafety") private var didAcknowledgeDriveSafety = false
+    /// Set when the notice was declined, so drive mode stays off for the rest of the session
+    /// without nagging at every fix.
+    @State private var declinedDriveThisSession = false
     /// Derived from `appearance` and the sun. Held rather than recomputed inline so `auto` can
     /// apply hysteresis across dusk.
     @State private var isNight = false
@@ -114,6 +120,18 @@ public struct RoadMapScreen: View {
                     ParcelDetailSheet(apn: apn, parcel: tappedParcel, isLoading: loadingParcel)
                 case .driveLog:
                     DriveLogList(roads: model.driveLog) { model.clearDriveLog() }
+                case .driveSafety:
+                    DriveSafetyNotice(
+                        onEnable: {
+                            didAcknowledgeDriveSafety = true
+                            sheet = nil
+                            syncModeWithMotion()
+                        },
+                        onDecline: {
+                            didAcknowledgeDriveSafety = true
+                            declinedDriveThisSession = true
+                            sheet = nil
+                        })
                 }
             }
         }
@@ -600,6 +618,14 @@ public struct RoadMapScreen: View {
     private func syncModeWithMotion() {
         let driving = location.motion == .driving
         guard driving != model.isDriving else { return }
+        // The first time the phone is moving at road speed, say what drive mode is before
+        // doing it. Taking over the screen of someone who never asked — and who may be the
+        // one steering — is the one thing in this app that warrants an interruption.
+        if driving, !didAcknowledgeDriveSafety {
+            if sheet == nil { sheet = .driveSafety }
+            return
+        }
+        if driving, declinedDriveThisSession { return }
         model.setDriving(driving)
         // Starting to drive implies wanting the map on the car.
         if driving, !isFollowing, let fix = location.currentFix {
@@ -735,6 +761,16 @@ public struct RoadMapScreen: View {
                         model.clear()
                     }
                 }
+                // The app has no settings or about screen, so this menu is the only route to
+                // them from inside the app. It is hidden while driving, which is why the
+                // driving notice carries its own copy of these links.
+                Divider()
+                Link(destination: URL(string: "https://hoobiltit.com/terms")!) {
+                    Label("Terms of Use", systemImage: "doc.text")
+                }
+                Link(destination: URL(string: "https://hoobiltit.com/privacy")!) {
+                    Label("Privacy", systemImage: "hand.raised")
+                }
             } label: {
                 Label("Examples", systemImage: "ellipsis.circle")
             }
@@ -868,6 +904,8 @@ enum MapSheet: Identifiable {
     case parcel(String)
     /// The roads identified on this drive.
     case driveLog
+    /// Shown once, the first time the phone is moving at road speed.
+    case driveSafety
 
     var id: String {
         switch self {
@@ -877,6 +915,7 @@ enum MapSheet: Identifiable {
         case .sources: "sources"
         case .parcel(let apn): "parcel-\(apn)"
         case .driveLog: "driveLog"
+        case .driveSafety: "driveSafety"
         }
     }
 }

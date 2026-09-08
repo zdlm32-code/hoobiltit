@@ -6,7 +6,8 @@
 **Copyright** 2026 hoobiltit
 **Support URL** https://hoobiltit.com/
 **Marketing URL** https://hoobiltit.com/
-**Privacy Policy URL** https://hoobiltit.com/privacy.html
+**Privacy Policy URL** https://hoobiltit.com/privacy
+**Terms of Use** https://hoobiltit.com/terms — also set as the custom EULA in App Store Connect
 
 ## Promotional text
 Now covering 19 states — including New Hampshire's Class VI roads and Vermont's

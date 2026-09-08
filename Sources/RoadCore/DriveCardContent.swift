@@ -34,7 +34,7 @@ public struct DriveCardContent: Sendable, Hashable, Codable {
             roadName: name,
             context: record.crossStreets?.value ?? placeName
                 ?? record.coverage?.jurisdiction?.description,
-            owner: record.owner?.value.displayName,
+            owner: record.owner?.displayNameWithConfidence,
             years: years,
             dateNote: years.isEmpty ? record.coverage?.shortDateNote(for: record) : nil,
             details: Self.details(of: record),

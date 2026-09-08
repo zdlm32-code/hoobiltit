@@ -545,3 +545,17 @@ public struct RoadRecord: Sendable {
         if slot == nil, let incoming { slot = incoming }
     }
 }
+
+public extension Attributed where Value == RoadOwner {
+    /// The owner, with "(inferred)" appended when the app worked it out rather than read it.
+    ///
+    /// `SegmentCard` and `ResultScreen` render a full "according to X, inferred" line under
+    /// every value. The drive card, the drive log and the CSV export have no room for that and
+    /// so printed `displayName` bare — which meant **"Not publicly maintained"**, a conclusion
+    /// the app reaches from the *absence* of a record, appeared on three surfaces as a flat
+    /// assertion. The confidence was already carried; three of the four places that show it
+    /// simply dropped it on the floor.
+    var displayNameWithConfidence: String {
+        confidence == .derived ? "\(value.displayName) (inferred)" : value.displayName
+    }
+}

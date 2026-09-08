@@ -53,7 +53,7 @@ struct DriveLogList: View {
             Text(record.segmentName?.value ?? record.routeDesignation?.value ?? "Unidentified road")
                 .font(.headline)
 
-            if let owner = record.owner?.value.displayName {
+            if let owner = record.owner?.displayNameWithConfidence {
                 Text(owner).font(.subheadline).foregroundStyle(.secondary)
             }
             if let between = record.crossStreets?.value {

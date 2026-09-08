@@ -124,7 +124,10 @@ if let a = record.annexation?.value {
     show("  ordinance PDF", a.ordinanceURL?.absoluteString, nil)
 }
 if CommandLine.arguments.contains("--request") {
-    let agency = record.owner.flatMap { AgencyDirectory.bundled.agency(for: $0.value) }
+    let agency = record.owner.flatMap {
+        AgencyDirectory.bundled.agency(for: $0.value,
+                                       inState: record.coverage?.jurisdiction?.stateFIPS)
+    }
     print("\n--- public records request ---")
     print(RecordsRequest.draft(for: record, agency: agency))
     print("--- end ---")

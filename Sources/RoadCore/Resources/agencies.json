@@ -1,10 +1,11 @@
 {
-  "_comment": "Contact routes for public-records requests, keyed to the owner the resolver concludes. Every URL here was checked live on 2026-09-06; do not add an entry that has not been. This ships in the bundle and is dated, so anything read from it must render its provenance as bundled.",
+  "_comment": "Contact routes for public-records requests, keyed to the owner the resolver concludes. Every URL here was checked live on 2026-09-06; do not add an entry that has not been. This ships in the bundle and is dated, so anything read from it must render its provenance as bundled. Every entry carries the state FIPS it serves: the directory is matched against the state the pin actually falls in, because a county owner used to return MCDOT in all fifty states and a city called Phoenix in Oregon used to return Phoenix, Arizona.",
   "capturedOn": "2026-09-06",
   "agencies": [
     {
       "id": "mcdot",
       "name": "Maricopa County Department of Transportation",
+      "stateFIPS": "04",
       "shortName": "MCDOT",
       "requestURL": "https://mcdot.maricopa.gov/FormCenter/WIC-31/Contact-Us-195",
       "portalURL": "https://www.maricopa.gov/4214/Public-Records",
@@ -13,15 +14,17 @@
     {
       "id": "adot",
       "name": "Arizona Department of Transportation",
+      "stateFIPS": "04",
       "shortName": "ADOT",
       "requestURL": "https://azdot.gov/adot-news/public-information-and-records-request",
       "mailingAddress": "ADOT Risk Management, 1655 W. Jackson Street, MD 128A, Phoenix, AZ 85007",
       "phone": "602-712-7744",
-      "guidance": "ADOT acknowledges a request within 7 business days. Non-commercial copies are $0.25 a page. A TRACS project number is the single most useful thing to quote — it is how ADOT files construction records, and bid results older than about four months exist only as records requests."
+      "guidance": "ADOT acknowledges a request within 7 business days. Non-commercial copies are $0.25 a page. A TRACS project number is the single most useful thing to quote \u2014 it is how ADOT files construction records, and bid results older than about four months exist only as records requests."
     },
     {
       "id": "goodyear",
       "name": "City of Goodyear",
+      "stateFIPS": "04",
       "requestURL": "https://www.goodyearaz.gov/government/departments/city-clerk-s-office/public-records-request",
       "mailingAddress": "City Clerk's Office, 1900 N. Civic Square, Goodyear, AZ 85395",
       "phone": "623-882-7830",
@@ -31,6 +34,7 @@
     {
       "id": "phoenix",
       "name": "City of Phoenix",
+      "stateFIPS": "04",
       "requestURL": "https://www.phoenix.gov/publicrecords"
     }
   ]

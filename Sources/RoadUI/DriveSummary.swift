@@ -65,7 +65,7 @@ struct DriveSummary: View {
             .minimumScaleFactor(0.7)
             .frame(height: 26, alignment: .leading)
 
-            if let owner = record?.owner?.value.displayName {
+            if let owner = record?.owner?.displayNameWithConfidence {
                 Text(owner)
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(palette.owner)

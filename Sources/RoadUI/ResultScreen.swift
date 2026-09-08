@@ -21,7 +21,10 @@ public struct ResultScreen: View {
     @State private var share: RoadShare?
 
     private var agency: Agency? {
-        record.owner.flatMap { AgencyDirectory.bundled.agency(for: $0.value) }
+        record.owner.flatMap {
+            AgencyDirectory.bundled.agency(for: $0.value,
+                                           inState: record.coverage?.jurisdiction?.stateFIPS)
+        }
     }
 
     public var body: some View {
