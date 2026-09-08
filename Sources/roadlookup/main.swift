@@ -41,6 +41,8 @@ show("route", record.routeDesignation?.value, record.routeDesignation)
 show("jurisdiction", record.jurisdiction?.value, record.jurisdiction)
 show("segment", record.segmentName?.value, record.segmentName)
 show("classification", record.classification?.value, record.classification)
+show("traffic", record.trafficCount.map { "\($0.value.formatted(.number)) vehicles a day" },
+     record.trafficCount)
 show("between", record.crossStreets?.value, record.crossStreets)
 show("maint. district", record.maintenanceDistrict?.value, record.maintenanceDistrict)
 show("supervisor district", record.supervisorDistrict.map { String($0.value) }, record.supervisorDistrict)
