@@ -10,17 +10,17 @@ Re-run the readiness audit any time with `python3 scripts/submission-status.py`.
 | Item | Value |
 |---|---|
 | Build | 16 (uploaded, VALID, attached to 1.0) |
-| Name / subtitle | hoobiltit · "Who owns the road you're on" |
+| Name / subtitle | hoobiltit: US Road Information · "Who built this road?" |
 | Description, keywords, promo text | from `store/listing.md` |
-| Support / marketing URL | https://hoobiltit.com/ |
-| Privacy policy URL | https://hoobiltit.com/privacy.html |
+| Support / marketing URL | https://hoobiltit.com |
+| Privacy policy URL | https://hoobiltit.com/privacy |
 | Categories | Reference (primary), Navigation (secondary) |
 | Age rating | 4+ — every content question answered "none" |
 | Copyright | 2026 hoobiltit |
 | Review contact | Eli Trevino · zdlm32@gmail.com · 9568670098 |
 | Review notes | no login needed, plus five test pins |
-| Screenshots | 5 iPhone (1320×2868), 3 iPad (2064×2752) |
-| Pricing | free |
+| Screenshots | 4 iPhone, 3 iPad |
+| Pricing | **$5.99** (base territory USA, proceeds $4.20) |
 | Export compliance | `ITSAppUsesNonExemptEncryption: false` in Info.plist |
 
 ## Two things still needed, both web-UI only
@@ -43,10 +43,17 @@ Then **Publish**.
 
 App Store Connect → hoobiltit → **App Information** → Content Rights.
 
-The app displays factual public records fetched from government open-data services
-(state DOTs, counties, cities, FHWA). Whether that counts as third-party content — and
-what rights basis to assert — is a representation you make to Apple, so it is left for
-you rather than guessed at.
+**Answer: uses third-party content.** Apple asks whether the app contains, shows or
+*accesses* third-party content, and this one queries government map services and
+displays what they return.
+
+Checking the accompanying rights confirmation is well founded here: the app ships no
+third-party assets at all (the asset catalog holds only the app icon), embeds no
+documents — the recorded-plat row is a link out to the county recorder — carries no
+agency logos, and uses MapKit for every map style, which is Apple's own. What it shows
+is factual public records, attributed on the card to the agency they came from.
+
+Settable over the API as `USES_THIRD_PARTY_CONTENT` if you would rather not click it.
 
 ## Then submit
 

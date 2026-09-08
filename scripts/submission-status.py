@@ -44,7 +44,13 @@ chk("Build attached", bd, f"build {bd['attributes']['version']}" if bd else "non
 for st in get(f"/appStoreVersionLocalizations/{VERLOC}/appScreenshotSets").get("data", []):
     n = len(get(f"/appScreenshotSets/{st['id']}/appScreenshots").get("data", []))
     chk(f"Screenshots {st['attributes']['screenshotDisplayType']}", n, f"{n} image(s)")
-chk("Pricing", get(f"/apps/{APP}/appPriceSchedule").get("data"), "set")
+# An empty appPriceSchedule exists by default on every app, so its presence proves
+# nothing — App Store Connect still refuses "Add for Review" until a tier is chosen.
+# Check the actual price, which is what it is really asking for.
+mp = get(f"/appPriceSchedules/{APP}/manualPrices?include=appPricePoint&limit=1")
+price = next((i["attributes"]["customerPrice"] for i in mp.get("included", [])), None)
+chk("Pricing (tier chosen)", price is not None,
+    f"${price}" if price is not None else "no tier chosen")
 
 print(f"{'':5}{'ITEM':34}DETAIL")
 for st, l, d in rows:
