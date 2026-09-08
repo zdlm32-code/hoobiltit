@@ -32,6 +32,7 @@ public struct ResultScreen: View {
                 when
                 structure
                 whatProject
+                workHistory
                 land
                 paperTrail
                 fallback
@@ -292,13 +293,24 @@ public struct ResultScreen: View {
                     LabelledValue(label: "Programmed cost",
                                   value: describe(funding.value), attributed: funding)
                 }
-                // The honest gap. Stated once, plainly, where the user is looking for it.
-                Text("No public source publishes the contractor or the award amount for a road "
-                     + "segment. That held for Maricopa County and it holds nationally: of "
-                     + "fourteen state DOTs checked, none carries construction cost. The "
-                     + "request below is how you get it.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                // This used to say flatly that no public source publishes cost or contractor
+                // anywhere. That was true of the fourteen state DOTs checked at the time and
+                // is false in Texas, whose construction register carries both — so the claim
+                // is now made only where it still holds.
+                if record.funding?.value.programmedAmount != nil {
+                    Text("This is the agency's *estimated* construction cost, not the amount "
+                         + "the contract was finally awarded or paid out. The request below is "
+                         + "how you get the awarded figure.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Most agencies publish no contractor and no award amount for a road "
+                         + "segment: that held for Maricopa County, and of fourteen state DOTs "
+                         + "checked only Texas carries construction cost. The request below is "
+                         + "how you get it.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -320,6 +332,74 @@ public struct ResultScreen: View {
         if let detail = project.value.detail {
             Text(detail).font(.footnote).foregroundStyle(.secondary)
         }
+    }
+
+    // MARK: - Work on this road
+
+    /// The full register, where an agency publishes one.
+    ///
+    /// Deliberately below "What project", which answers the question in one line. This is the
+    /// evidence behind that line, and for a Texas highway it can run to twenty-odd jobs across
+    /// fifty years, so it is a list rather than a sentence.
+    @ViewBuilder
+    private var workHistory: some View {
+        if let works = record.works?.value, !works.isEmpty {
+            let done = works.filter { !$0.isPlanned }
+            let planned = works.filter(\.isPlanned)
+            if !done.isEmpty {
+                Section("Work on this road") {
+                    ForEach(Array(done.enumerated()), id: \.offset) { _, work in
+                        workRow(work)
+                    }
+                    Text("Dates are when the contract was let, not when work finished. A "
+                         + "project is drawn along the whole control section, so a job may "
+                         + "have been done elsewhere on this stretch.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if !planned.isEmpty {
+                Section("Planned") {
+                    ForEach(Array(planned.enumerated()), id: \.offset) { _, work in
+                        workRow(work)
+                    }
+                    Text("Not yet let. Planned work slips and is sometimes cancelled.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func workRow(_ work: RoadWork) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(work.title).font(.body)
+                Spacer()
+                if let year = work.letDate.map({ CalendarDate.year($0) }) {
+                    Text(String(year)).font(.body).foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+            if let cost = work.cost {
+                Text(cost.formatted(.currency(code: "USD").precision(.fractionLength(0))))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let contractor = work.contractor {
+                Text("Built by \(contractor)").font(.caption)
+            }
+            if let location = work.location {
+                Text(location).font(.caption).foregroundStyle(.secondary)
+            }
+            if let detail = work.detail {
+                Text(detail).font(.footnote).foregroundStyle(.secondary)
+            }
+            if let number = work.projectNumber {
+                Text("Project \(number)").font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     // MARK: - The land beside it

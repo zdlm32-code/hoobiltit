@@ -9,7 +9,7 @@ road-ownership dataset and pretending otherwise would be a promise the data cann
 | Tier | Where | What you get |
 |---|---|---|
 | County | Maricopa County, AZ | Everything: owner, project, plat, declaration, pavement, parcels |
-| State | Arizona, Pennsylvania, Louisiana, Texas | Name, owner, construction and improvement year where the state publishes one |
+| State | Arizona, Pennsylvania, Louisiana, Texas | Name, owner, construction and improvement year where the state publishes one. In Texas, the full construction register on the state system: every project back to 1970 with cost, and the contractor on live work |
 | National | Everywhere in the US | Street name from Census TIGER/Line, ownership if the road is on the National Highway System, a build year if you are on a bridge |
 
 Adding a state is an edit to `Sources/RoadCore/Resources/coverage.json`, not a code change — so
@@ -126,10 +126,13 @@ the declaration source needs the segment name or the plat to tell one road file 
 neighbours', the bridge source needs the road name so a canal bridge four hundred metres away
 cannot claim a residential pin, and the funding source needs the TRACS number.
 
-**Contractor and award are not in v1.** No API for them exists — not in this county and not
-anywhere: of fourteen state DOTs probed, **none publishes construction cost** on a road
-segment. See
-[§6 of the findings](docs/ENDPOINTS.md#6-contractor-and-award--no-api-exists). That section
+**Contractor and cost: Texas only.** This was previously recorded here, and shown to users in
+the app, as flatly impossible — of fourteen state DOTs probed, none published construction cost.
+That was wrong. **TxDOT publishes both**: an estimated construction cost on 73,085 of 73,306
+projects going back to 1970, and the construction company on work currently under way. The other
+thirteen states and Maricopa County still publish neither, and even in Texas the figure is the
+estimate rather than the awarded amount. See
+[§6](docs/ENDPOINTS.md#6-contractor-and-award--one-state-has-it-the-rest-do-not) and §10.2c. That section
 also explains why USAspending was dropped rather than deferred: it can only resolve to ZIP+4,
 and its keyword search returns Lockheed Martin radar contracts for "Litchfield Road" because
 the recipient's mailing address is on that street.

@@ -629,9 +629,20 @@ Project → segment is proximity-and-name matching. Label it that way in the UI.
 
 ---
 
-## 6. Contractor and award — no API exists
+## 6. Contractor and award — one state has it, the rest do not
 
-This is the honest state of leg 3, and why it is deferred.
+**Corrected 2026-09-07.** This section previously read "no API exists" and concluded that leg 3
+was unobtainable anywhere. That was wrong, and the app repeated it to users in print. **TxDOT
+publishes both**: `ProjectTracker_AGO` names the construction company on 7,542 projects under
+way, and the DCIS register carries an estimated construction cost on 73,085 of 73,306 projects
+(§10.2c). What follows remains true of the other thirteen states probed, and of Maricopa County.
+
+Note the limits even where it works. The Texas figure is the *estimate*, not the awarded amount,
+and the contractor is published only while a job is live — a road built in 1988 still has no
+company against it. So the records request below is still the route to an awarded figure, and
+the app says so wherever it shows a cost.
+
+This is the honest state of leg 3 elsewhere, and why it is deferred.
 
 **ADOT** publishes bid results as server-rendered HTML with no JSON/CSV API:
 - As-read: `https://cnsads.azdot.gov/as-read` → 13 rows, columns
@@ -1113,6 +1124,63 @@ roads that *do* carry a real label still get it: *Fort Bend Parkway*, 41,183 AAD
 build year — so it is deliberately **not** mapped to `yearBuilt`. Texas ships with a
 `dateCaveat` saying so on the card.
 
+### 10.2c Texas — the construction register, and the answer to leg 3
+
+```
+https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_DCIS_All_Projects/FeatureServer/0
+https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/ProjectTracker_AGO/FeatureServer/1
+```
+
+DCIS — the Design and Construction Information System — is published as a **spatially queryable
+polyline layer of 73,306 projects**, and it is the richest source in this app. Verified live:
+
+| Field | Coverage |
+|---|---|
+| `PROJ_ESTMTD_LET_D` | 73,290 — let dates from **1970-10-01 to 2050-08-01** |
+| `EST_CONSTRUCTION_COST` | **73,085 (99.7%)** |
+| `TYPE_OF_WORK` | 72,581, of which 1,500 are the placeholder `Legacy` |
+| `PROJ_CLASS` | a **66-value controlled vocabulary** |
+| `PROJ_STAT` | 51,145 Closed, 21,833 Active, 328 paused or inactive |
+
+`ACTUAL_LET_DATE`, `DIST_LET_DATE` and `EST_CONST_COST` are all **empty on every row** — the
+populated fields are `PROJ_ESTMTD_LET_D`, `COMMISSION_AWARD_OF_CONTRACT` (13,128) and
+`EST_CONSTRUCTION_COST`. Reaching for the obviously-named field gets nothing.
+
+`ProjectTracker_AGO` layer 1 joins on the nine-digit CSJ and adds **`CNSTR_CMPNY_NM`, the
+construction company**, with `CNSTR_WKBG_DT` and `CNSTR_PCT_COMPLETE`. It holds 17,469 rows of
+which 7,542 name a company, and **every one is live or near-term work** — 7,391 "underway or
+begins soon", 151 "within 4 years". There is no contractor for history.
+
+**`PROJ_CLASS` is what makes this usable**, because it separates building from maintaining
+mechanically where free text cannot. `Seal Coat` is the largest class in the state at 26,101
+projects, so a rule that let maintenance answer *who built this road* would answer it wrongly
+more often than not. `CodeTables.workKind(txdot:)` buckets the vocabulary; an unrecognised class
+is ancillary, never a build.
+
+**Two traps in the money.** The largest number on a stretch is often not construction: at the
+I-35 test pin the top two amounts are a **$53.5M `Preliminary Engineering`** and a **$30.1M
+`Intersection & Operational Imprv`**, while the biggest actual build already let is a **$12.6M
+`Widen Freeway` from 1988**. And the single largest project of all is a **$1.62bn freeway
+widening let in 2037**, which has not happened. Ranking by cost alone, or failing to exclude
+future let dates, produces a confident wrong answer in both directions.
+
+**Geometry is control-section-wide, not project-wide.** A `WIDEN BRIDGE AND APPROACHES` job with
+`PROJ_LENGTH` 0.001 mi is drawn across 6.44 km of highway. So a match means *this job was on this
+stretch*, not *at this point* — which is why `LIMITS_FROM`/`LIMITS_TO` are carried and shown.
+
+**The gate is 25 m, not the usual 60.** Project lines are derived from the same LRS as the
+roadway, so they sit almost on the centreline: the 22 genuine projects at the I-35 pin measure
+6.8-10.5 m. At the mid-block San Jacinto Blvd pin DCIS returns exactly one project — **State Loop
+343's 2029 overlay, 55.0 m away** — which is inside `RoadProximity.onRoadMeters` and would credit
+a city street with a state highway's history. See §5.3b; this is the third time this class of bug
+has appeared.
+
+**It is a state-system dataset.** Zero projects at Bagby St in Houston, at County Road 2108, and
+at the Fort Bend Parkway pin. 812 projects carry a `CS` highway number and 573 a `CR`, so the
+coverage off-system is not nil, but it is thin — and `SURF_TREAT_YEAR` is state-only too
+(109,223 rows, **all `ADMIN = 1`**). Texas's 427,315 local-street and 302,900 county segments get
+name, owner, class and traffic, and no dates.
+
 ### 10.3 Construction year: three states of fourteen
 
 | State | Field | Coverage |
@@ -1127,8 +1195,10 @@ are `-2209161600000` — epoch for 1900-01-01, a placeholder. Ohio's official se
 `gis.dot.state.ohio.gov/arcgis/rest/services` returns **404**. Texas `SURF_TREAT_YEAR` is last
 surface treatment, not construction; a weak lower bound at best.
 
-**Cost: zero of fourteen.** No state publishes construction cost on a road segment. What was
-true for Maricopa (§6) is true nationally.
+**Cost: one of fourteen.** Thirteen of the fourteen publish no construction cost on a road
+segment, as Maricopa does not (§6). **Texas is the exception** and a substantial one:
+`EST_CONSTRUCTION_COST` on 73,085 of 73,306 projects, plus a named contractor on live work
+(§10.2c). The earlier "zero of fourteen" in this document was wrong.
 
 ### 10.4 The portability trap, and why the client was already immune
 

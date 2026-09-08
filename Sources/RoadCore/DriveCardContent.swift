@@ -70,6 +70,20 @@ public struct DriveCardContent: Sendable, Hashable, Codable {
         if let improvedYear, improvedYear != builtYear {
             found.append("Resurfaced \(improvedYear)")
         }
+        // A state that dates its roads only through its construction register, as Texas does,
+        // reaches the card here. The date is when the contract was *let*, so the wording never
+        // claims more than that — a job let in December was not finished in December.
+        if found.isEmpty, let works = record.works?.value {
+            if let built = works.first(where: { $0.kind == .built && !$0.isPlanned }),
+               let year = built.letDate.map({ CalendarDate.year($0) }) {
+                found.append("Built under a \(year) contract")
+            }
+            if let kept = works.first(where: { $0.kind == .maintained && !$0.isPlanned }),
+               let year = kept.letDate.map({ CalendarDate.year($0) }),
+               !found.contains(where: { $0.hasSuffix("\(year) contract") }) {
+                found.append("Resurfaced \(year)")
+            }
+        }
         if found.isEmpty, let declared = record.declaration?.value.effectiveDate {
             found.append("Public road since \(CalendarDate.year(declared))")
         }

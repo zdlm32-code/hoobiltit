@@ -163,16 +163,93 @@ public struct ProjectFunding: Sendable, Hashable, Codable {
     /// When the project actually opened to traffic. Distinct from any construction year —
     /// a project can open years after the roadway under it was last built.
     public let inServiceDate: Date?
+    /// The company that built it, where the agency names one.
+    ///
+    /// Long assumed impossible: fourteen state DOTs were checked and none published a
+    /// contractor, which is why the result screen carried a flat statement that no public
+    /// source does. TxDOT's Project Tracker does, on work currently under construction, so
+    /// the claim was wrong rather than merely unlucky.
+    public let contractor: String?
 
     public init(programmedAmount: Double? = nil, fiscalYear: String? = nil,
                 leadAgency: String? = nil, region: String? = nil,
-                projectNumber: String? = nil, inServiceDate: Date? = nil) {
+                projectNumber: String? = nil, inServiceDate: Date? = nil,
+                contractor: String? = nil) {
         self.programmedAmount = programmedAmount
         self.fiscalYear = fiscalYear
         self.leadAgency = leadAgency
         self.region = region
         self.projectNumber = projectNumber
         self.inServiceDate = inServiceDate
+        self.contractor = contractor
+    }
+}
+
+/// What a job actually did to the road.
+///
+/// Carried on the work itself rather than left in the source, so that a screen can group and
+/// filter a history without knowing one agency's vocabulary. A `String` raw value so it
+/// survives the cache's JSON round trip.
+public enum RoadWorkKind: String, Sendable, Hashable, Codable {
+    /// Built, widened, rebuilt or replaced something.
+    case built
+    /// Kept an existing road serviceable: seal coat, overlay, bridge maintenance.
+    case maintained
+    /// Signals, signs, landscaping, sidewalks, studies, right-of-way purchases, and design
+    /// work billed before a shovel moves. Real spending on the road, worth listing, but it
+    /// never built anything and must never be offered as the answer to who did.
+    case ancillary
+}
+
+/// One dated job on a stretch of road.
+///
+/// The first fact in this app that is a *list*. Every other slot on a record holds a single
+/// value, which is right when a source publishes one answer — MCDOT names one capital project
+/// and one maintenance project, and that is all it has. TxDOT publishes a register going back
+/// to 1970, and one pin on I-35 sits on twenty-two jobs: a widening, a resurfacing, a bridge
+/// replacement, and work not yet let. Collapsing that to one project would throw away the
+/// answer to the question the app exists to ask.
+///
+/// Deliberately separate from `ProjectReference`, which is a *reference* to a project and
+/// carries neither a date nor money. This carries both, because a history is useless without
+/// them, and merging the two would drag dates onto a type five other sources populate.
+public struct RoadWork: Sendable, Hashable, Codable {
+    /// TxDOT's control-section-job number, the id a records request should quote.
+    public let projectNumber: String?
+    /// The agency's own classification, from a controlled vocabulary — "Widen Freeway",
+    /// "Seal Coat". Not free text, so it can be trusted to say what kind of job this was.
+    public let title: String
+    /// The agency's free-text description, which ranges from clear to pure jargon.
+    public let detail: String?
+    /// Where the job actually ran, in the agency's words. Worth showing because project
+    /// geometry is drawn along a whole control section, so a job may have happened somewhere
+    /// else on the stretch the pin is standing on.
+    public let location: String?
+    /// When the contract was let. Not the day a paving crew arrived, and never presented as
+    /// one — but it is the date the agency itself files the job under.
+    public let letDate: Date?
+    /// The agency's *estimate*, not the awarded amount. The distinction is disclosed wherever
+    /// this is shown.
+    public let cost: Double?
+    public let contractor: String?
+    public let kind: RoadWorkKind
+    /// Let date in the future. Kept apart everywhere it is displayed, so a road is never
+    /// described as built by a job that has not happened.
+    public let isPlanned: Bool
+
+    public init(projectNumber: String? = nil, title: String, detail: String? = nil,
+                location: String? = nil, letDate: Date? = nil, cost: Double? = nil,
+                contractor: String? = nil, kind: RoadWorkKind = .ancillary,
+                isPlanned: Bool = false) {
+        self.projectNumber = projectNumber
+        self.title = title
+        self.detail = detail
+        self.location = location
+        self.letDate = letDate
+        self.cost = cost
+        self.contractor = contractor
+        self.kind = kind
+        self.isPlanned = isPlanned
     }
 }
 
@@ -324,6 +401,12 @@ public struct RoadFragment: Sendable, Codable {
     public var routeDesignation: Attributed<String>?
 
     public var project: Attributed<ProjectReference>?
+    /// Every dated job the agency records on this stretch, newest first.
+    ///
+    /// Additive and optional on purpose: `SwiftDataFragmentCache` stores a fragment as a JSON
+    /// blob and decodes it with `try?`, so an entry written before this field existed still
+    /// decodes, with `works` nil, instead of being thrown away.
+    public var works: Attributed<[RoadWork]>?
     public var notes: [SourceNote] = []
 
     public init() {}
@@ -364,6 +447,8 @@ public struct RoadRecord: Sendable {
     public var trafficCount: Attributed<Int>?
     public var routeDesignation: Attributed<String>?
     public var project: Attributed<ProjectReference>?
+    /// Every dated job the agency records on this stretch, newest first. See `RoadWork`.
+    public var works: Attributed<[RoadWork]>?
 
     /// One entry per source consulted, including the ones that found nothing or failed.
     public var notes: [SourceNote] = []
@@ -413,6 +498,7 @@ public struct RoadRecord: Sendable {
         fill(&trafficCount, fragment.trafficCount)
         fill(&routeDesignation, fragment.routeDesignation)
         fill(&project, fragment.project)
+        fill(&works, fragment.works)
         notes.append(contentsOf: fragment.notes)
     }
 

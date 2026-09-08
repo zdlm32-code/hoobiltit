@@ -99,17 +99,26 @@ public struct PipelineFactory: Sendable {
                              client: client)
     }
 
+    /// The catalog may reorder or disable a compiled-in source; it cannot invent one. An id
+    /// this build does not know is skipped, so a catalog published for a newer app degrades
+    /// rather than crashing this one.
+    ///
+    /// `sourceIDs` is the whole pipeline for a `bespoke` entry, and *additional* sources for a
+    /// generic one — appended after the adapter's own, so they can build on what it resolved.
+    /// Texas is why: its inventory reads perfectly well through `flatInventory`, and rewriting
+    /// that as bespoke to bolt on a project source would throw away a tested name join to gain
+    /// nothing. A state can now have a hand-written helper without giving up the generic path.
     private func sources(for profile: CoverageProfile) -> [any RoadSource] {
+        let compiled = (profile.sourceIDs ?? []).compactMap { self.compiled(id: $0) }
         switch profile.adapter {
         case .flatInventory:
-            return [FlatInventorySource(profile: profile, client: client, now: now)].compactMap { $0 }
+            return [FlatInventorySource(profile: profile, client: client, now: now)]
+                .compactMap { $0 } + compiled
         case .lrsEvents:
-            return [LRSEventSource(profile: profile, client: client, now: now)].compactMap { $0 }
+            return [LRSEventSource(profile: profile, client: client, now: now)]
+                .compactMap { $0 } + compiled
         case .bespoke:
-            // The catalog may reorder or disable a compiled-in source; it cannot invent one.
-            // An id this build does not know is skipped, so a catalog published for a newer
-            // app degrades rather than crashing this one.
-            return (profile.sourceIDs ?? []).compactMap { compiled(id: $0) }
+            return compiled
         }
     }
 
@@ -129,6 +138,7 @@ public struct PipelineFactory: Sendable {
         case "usdot.nbi":         NBIBridgeSource(client: client, now: now)
         case "census.tiger":      TIGERNameSource(client: client, now: now)
         case "fhwa.nhs":          NHSOwnershipSource(client: client, now: now)
+        case "tx.dcis":           TxDOTProjectSource(client: client, now: now)
         default:                  nil
         }
     }

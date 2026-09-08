@@ -42,7 +42,31 @@ public enum ReportDocument {
         section("THE PROJECT", into: &lines, rows: [
             ("Built under", record.project.map { SegmentCard.describe($0.value) }),
             ("Most recent work", record.lastKnownImprovement.map { SegmentCard.describe($0.value) }),
+            // Cost was missing from the shared report entirely, so the one figure the app can
+            // now sometimes answer could not survive being sent to anyone.
+            ("Estimated construction cost", record.funding?.value.programmedAmount.map {
+                $0.formatted(.currency(code: "USD").precision(.fractionLength(0)))
+            }),
+            ("Contractor", record.funding?.value.contractor),
         ])
+
+        if let works = record.works?.value, !works.isEmpty {
+            lines.append("WORK ON THIS ROAD")
+            lines.append("  Dates are when the contract was let, not when work finished.")
+            for work in works {
+                var parts = [work.letDate.map { String(CalendarDate.year($0)) } ?? "undated",
+                             work.title]
+                if let cost = work.cost {
+                    parts.append(cost.formatted(.currency(code: "USD").precision(.fractionLength(0))))
+                }
+                if work.isPlanned { parts.append("(planned, not yet let)") }
+                lines.append("  - " + parts.joined(separator: " \u{00B7} "))
+                if let contractor = work.contractor { lines.append("      built by \(contractor)") }
+                if let location = work.location { lines.append("      \(location)") }
+                if let number = work.projectNumber { lines.append("      project \(number)") }
+            }
+            lines.append("")
+        }
 
         section("THE PAPER TRAIL", into: &lines, rows: [
             ("Subdivision", record.plat?.value.subdivisionName),

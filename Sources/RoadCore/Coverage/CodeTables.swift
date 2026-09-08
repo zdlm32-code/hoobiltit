@@ -186,6 +186,78 @@ public enum CodeTables {
         }
     }
 
+    // MARK: - TxDOT project classes
+
+    /// What a TxDOT project actually did, from `PROJ_CLASS`.
+    ///
+    /// Unlike `TYPE_OF_WORK`, which is free text ranging from "Widen Road - Add Lanes" to
+    /// "GR, STRS, ASB, ACP, SIGNALIZATION", `PROJ_CLASS` is a controlled vocabulary of 66
+    /// values. That is what makes it safe to decide, mechanically, whether a job built a road
+    /// or merely maintained one — and the distinction is the whole product question here.
+    /// **Seal Coat is the single largest class in the state at 26,101 projects**, so a rule
+    /// that let maintenance answer "who built this road" would answer it wrongly more often
+    /// than not.
+    /// Verified live against a group-by over all 73,306 projects; counts are that census.
+    static let txdotBuildClasses: Set<String> = [
+        "New Location Freeway", "New Location Non-Freeway",
+        "Convert Non-Freeway To Freeway", "Interchange (New or Reconstructed)",
+        "Widen Freeway", "Widen Non-Freeway", "Systemic Widening Projects",
+        "Bridge Replacement", "Bridge Widening or Rehabilitation",
+        "Rehabilitation of Existing Road", "Restoration", "Super-2 Highway",
+        "Upgrade to Standards Freeway", "Upgrade to Standards Non-Freeway",
+        "Miscellaneous Construction", "Tunnel Construction",
+    ]
+
+    static let txdotMaintenanceClasses: Set<String> = [
+        "Seal Coat", "Overlay", "Bridge Maintenance",
+        "Bridge Preventative Maintenance", "Bridge Preventative Maintenance - Sealed",
+        "Routine Maintenance Project", "Routine Maintenance Project - Sealed",
+        "Material Maintenance Project", "Material Maintenance Project - Sealed",
+        "Emergency Maintenance Project - Sealed", "Culvert & Storm Drainage Work",
+    ]
+
+    /// Classes reviewed and deliberately filed as ancillary, kept as a list so the decision is
+    /// recorded rather than inferred from an absence.
+    ///
+    /// `Intersection & Operational Imprv` is the one worth arguing about: 787 projects, and at
+    /// the I-35 test pin it is a **$30.1M** job whose description reads "ADD SHLDRS, AUX & TRN
+    /// LNS". That is real roadwork. It stays ancillary because the question on the card is *who
+    /// built this road*, and "the road was built by a 1988 freeway widening" is a better answer
+    /// than "by a 2015 intersection improvement" even though the latter cost more. It still
+    /// appears in the history, with its cost.
+    ///
+    /// `Preliminary Engineering` is the clearest case: at the same pin it is the single largest
+    /// completed amount at **$53.5M**, and it is design work billed before construction starts.
+    static let txdotAncillaryClasses: Set<String> = [
+        "Safety Improvement Projects", "Hazard Elimination & Safety", "Safety Bond Projects",
+        "Traffic Control Devices", "Traffic Signal", "Traffic Protection Devices",
+        "Corridor Traffic Management", "Freeway Operational Improvements",
+        "Intersection & Operational Imprv", "Landscape & Scenic Enhancement",
+        "Pedestrian, Sidewalks & Curb Ramps", "Bicycle Infrastructure Improvements",
+        "Preliminary Engineering", "Feasibility Studies", "Environmental Work Activities",
+        "Right of Way", "Utility Adjustments", "Emergency Relief Projects", "Default",
+        "Rail Hwy Crossing Signals/Structures", "Grade Crossing Protection", "Rail Replanking",
+        "Railroad Relocation", "State Owned Rail Line", "Transportation Enhancement",
+        "Transportation Non-Roadway", "Safety Rest Area", "Ferry Boat", "Port Infrastructure",
+        "Border Crossing Facility", "Abatement Project", "Remove Hazardous Paint (Bridge)",
+        "State Use Project", "State Use Project - Sealed", "Texas Park and Wildlife",
+        "Military Bases and Federal Campus", "RPV - Legacy project classification",
+        "ADD - Legacy project classification",
+    ]
+
+    /// An unrecognised class is `ancillary`, never `built`.
+    ///
+    /// The same rule `owner(hpms:)` follows, for the same reason: TxDOT can add a class to the
+    /// vocabulary at any time, and the cost of guessing wrong is telling somebody a road was
+    /// built by a job that painted its stripes. `probe.sh` warns when a new class appears.
+    public static func workKind(txdot projectClass: String?) -> RoadWorkKind {
+        guard let projectClass else { return .ancillary }
+        let trimmed = projectClass.trimmingCharacters(in: .whitespacesAndNewlines)
+        if txdotBuildClasses.contains(trimmed) { return .built }
+        if txdotMaintenanceClasses.contains(trimmed) { return .maintained }
+        return .ancillary
+    }
+
     // MARK: - Lookup
 
     /// Reads a code that may arrive as `4`, `"4"`, `"04"` or `"04-Municipal or City Hwy

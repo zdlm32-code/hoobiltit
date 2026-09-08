@@ -119,7 +119,7 @@ public extension RoadRecord {
         take(plattedDate); take(declaration); take(acquisition); take(parcel)
         take(bridge); take(funding); take(lastKnownImprovement)
         take(yearLastConstruction); take(yearLastImprovement); take(trafficCount)
-        take(routeDesignation); take(project)
+        take(routeDesignation); take(project); take(works)
         return found
     }
 }

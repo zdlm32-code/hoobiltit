@@ -62,7 +62,10 @@ struct PipelineFactoryTests {
         // Harris County has no county profile, so Texas is state-tier only: TxDOT owns and
         // classifies the road, and the join gives it a name the national tier would otherwise
         // have had to supply.
-        #expect(ids(harris) == ["tx.txdot"] + national)
+        //
+        // `tx.dcis` is appended by the catalog's `sourceIDs` even though the adapter is
+        // generic, and it must run *after* the inventory, not instead of it.
+        #expect(ids(harris) == ["tx.txdot", "tx.dcis"] + national)
         #expect(PipelineFactory().pipeline(for: harris).coverage.level == .state)
     }
 

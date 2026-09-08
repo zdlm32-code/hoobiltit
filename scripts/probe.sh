@@ -18,6 +18,7 @@ PENNDOT="https://gis.penndot.pa.gov/gis/rest/services/opendata/roadwaysegments/M
 LADOTD="https://gis.dotd.la.gov/road/rest/services/Roads_and_Highways_OpenData/MapServer"
 TXINV="https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadway_Inventory/FeatureServer/0"
 TXRDS="https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadways/FeatureServer/0"
+TXDCIS="https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_DCIS_All_Projects/FeatureServer/0"
 
 # Named test pins from docs/ENDPOINTS.md §8 (bash 3.2 has no associative arrays)
 PIN_NAMES="lonemountain goodyear i10 suncity williams mc85 mcdowell"
@@ -98,6 +99,7 @@ probe_national() {
   q "LA/91    ownership"       "$LADOTD/91/query?geometry=$E&$ENVQ"
   q "LA/69    last construct"  "$LADOTD/69/query?geometry=$E&$ENVQ"
   q "TxDOT    inventory"       "$TXINV/query?geometry=$E&$ENVQ"
+  q "TxDOT    projects"        "$TXDCIS/query?geometry=$E&$ENVQ"
   echo
 }
 
@@ -192,6 +194,59 @@ print("ok" if ok else "changed", max(g) if g else 0)')
   echo
 }
 
+# TxDOT's PROJ_CLASS decides whether a job built a road or merely maintained it, and the app
+# ships that vocabulary (CodeTables.txdotBuildClasses). A class TxDOT adds later falls through
+# to "ancillary" rather than being guessed at, so nothing breaks -- but a real construction
+# class landing there means the app quietly stops crediting it, which no test can catch.
+check_txdot_project_classes() {
+  echo "=== TxDOT PROJ_CLASS vocabulary (ENDPOINTS.md 10.2c)"
+  local unknown
+  unknown=$(curl -s -m 120 "$TXDCIS/query?where=1%3D1&groupByFieldsForStatistics=PROJ_CLASS&outStatistics=%5B%7B%22statisticType%22%3A%22count%22%2C%22onStatisticField%22%3A%22OBJECTID%22%2C%22outStatisticFieldName%22%3A%22n%22%7D%5D&returnGeometry=false&f=json" \
+    | python3 -c '
+import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print("err"); raise SystemExit
+if "error" in d: print("err"); raise SystemExit
+known={"New Location Freeway","New Location Non-Freeway","Convert Non-Freeway To Freeway",
+ "Interchange (New or Reconstructed)","Widen Freeway","Widen Non-Freeway",
+ "Systemic Widening Projects","Bridge Replacement","Bridge Widening or Rehabilitation",
+ "Rehabilitation of Existing Road","Restoration","Super-2 Highway",
+ "Upgrade to Standards Freeway","Upgrade to Standards Non-Freeway",
+ "Miscellaneous Construction","Tunnel Construction","Seal Coat","Overlay","Bridge Maintenance",
+ "Bridge Preventative Maintenance","Bridge Preventative Maintenance - Sealed",
+ "Routine Maintenance Project","Routine Maintenance Project - Sealed",
+ "Material Maintenance Project","Material Maintenance Project - Sealed",
+ "Emergency Maintenance Project - Sealed","Culvert & Storm Drainage Work"}
+# Reviewed and deliberately ancillary -- see CodeTables.txdotAncillaryClasses.
+known|={"Safety Improvement Projects","Hazard Elimination & Safety","Safety Bond Projects",
+ "Traffic Control Devices","Traffic Signal","Traffic Protection Devices",
+ "Corridor Traffic Management","Freeway Operational Improvements",
+ "Intersection & Operational Imprv","Landscape & Scenic Enhancement",
+ "Pedestrian, Sidewalks & Curb Ramps","Bicycle Infrastructure Improvements",
+ "Preliminary Engineering","Feasibility Studies","Environmental Work Activities",
+ "Right of Way","Utility Adjustments","Emergency Relief Projects","Default",
+ "Rail Hwy Crossing Signals/Structures","Grade Crossing Protection","Rail Replanking",
+ "Railroad Relocation","State Owned Rail Line","Transportation Enhancement",
+ "Transportation Non-Roadway","Safety Rest Area","Ferry Boat","Port Infrastructure",
+ "Border Crossing Facility","Abatement Project","Remove Hazardous Paint (Bridge)",
+ "State Use Project","State Use Project - Sealed","Texas Park and Wildlife",
+ "Military Bases and Federal Campus","RPV - Legacy project classification",
+ "ADD - Legacy project classification"}
+# Only flag a new class carrying real volume; the long tail is ancillary by design.
+# TxDOT emits some values with trailing whitespace ("Corridor Traffic Management "), which the
+# app trims before lookup; trim here too or every run reports a false change.
+new=[((f["attributes"]["PROJ_CLASS"] or "").strip(),f["attributes"]["n"]) for f in d.get("features",[])
+     if (f["attributes"]["PROJ_CLASS"] or "").strip() not in known and f["attributes"]["n"]>=100]
+print(";".join(f"{c}={n}" for c,n in sorted(new,key=lambda t:-t[1])) if new else "none")')
+  echo "  unclassified classes over 100 projects -> ${unknown:-?}"
+  case "$unknown" in
+    none) echo "  OK: every high-volume PROJ_CLASS is in the shipped table." ;;
+    err)  echo "  INCONCLUSIVE: the request failed; re-run before drawing any conclusion." ;;
+    *)    echo "  CHECK: decide whether these built a road, and update CodeTables accordingly." ;;
+  esac
+  echo
+}
+
 # Feature count for a query URL, or the string "err" if the request did not come back.
 count() {
   curl -s -m 25 --retry 3 --retry-delay 1 --retry-all-errors "$1" | python3 -c '
@@ -216,4 +271,5 @@ else
   check_measure_join
   check_penndot_codes
   check_txdot_codes
+  check_txdot_project_classes
 fi

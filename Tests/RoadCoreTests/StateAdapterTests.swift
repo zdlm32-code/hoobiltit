@@ -255,12 +255,15 @@ struct TxDOTTests {
         #expect(fragment.owner?.confidence == .spatial)
     }
 
-    @Test("Texas says plainly that it has no construction year")
+    @Test("Texas says plainly which roads it has no dates for")
     func statesTheDateGap() async throws {
         let fragment = try await source(austin).fetch(sanJacinto)
+        // The inventory itself dates nothing anywhere; dated projects come from `tx.dcis`,
+        // and only on the state system. San Jacinto Blvd is a city street, so the caveat is
+        // the whole of what this pin gets.
         #expect(fragment.yearLastConstruction == nil)
         #expect(fragment.yearLastImprovement == nil)
-        #expect(fragment.notes.first?.detail?.contains("no construction year") == true)
+        #expect(fragment.notes.first?.detail?.contains("no dates at all") == true)
     }
 
     @Test("A failed join costs the name, not the ownership")

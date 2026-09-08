@@ -87,5 +87,6 @@ public extension RoadFragment {
             || yearLastImprovement != nil || routeDesignation != nil
             || declaration != nil || acquisition != nil || bridge != nil || funding != nil
             || parcel != nil || segmentIdentifier != nil || trafficCount != nil
+            || works != nil
     }
 }
