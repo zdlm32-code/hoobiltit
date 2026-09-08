@@ -74,6 +74,10 @@ public enum ProfileMapping {
         guard let field = mapping.ownership else { return nil }
         // Read before the numeric decode: this field holds "Bexar County", not a code, and
         // `CodeTables.code` would take the leading digits of a name and invent an owner.
+        if mapping.ownershipTable == .adotOwnership {
+            guard let text = feature[field].text, !mapping.isNull(text) else { return nil }
+            return CodeTables.owner(adot: text)
+        }
         if mapping.ownershipTable == .dallasMaintenance {
             return CodeTables.owner(dallas: feature[field].text)
         }
@@ -90,7 +94,8 @@ public enum ProfileMapping {
         case .hpmsOwnership:        return CodeTables.owner(hpms: code)
         case .penndotJurisdiction:  return CodeTables.owner(penndot: code)
         case .txdotAdmin:           return CodeTables.owner(txdot: code)
-        case .fhwaFunctionalClass, .dallasRehabType, .namedAgency, .dallasMaintenance, .none:
+        case .fhwaFunctionalClass, .dallasRehabType, .namedAgency, .dallasMaintenance,
+             .adotOwnership, .none:
             return nil
         }
     }

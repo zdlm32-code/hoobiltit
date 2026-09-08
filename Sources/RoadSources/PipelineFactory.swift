@@ -34,6 +34,7 @@ public struct PipelineFactory: Sendable {
         var names: [String] = []
         var caveats: [String] = []
         var level = CoverageLevel.national
+        var stateFallback: [any RoadSource] = []
 
         if let jurisdiction {
             // A city's own street inventory outranks the state's copy of it. TxDOT files every
@@ -59,10 +60,20 @@ public struct PipelineFactory: Sendable {
                     level = max(level, .county)
                 }
             }
-            if let state = catalog.profile(forState: jurisdiction.stateFIPS) {
-                let built = self.sources(for: state)
-                if !built.isEmpty {
-                    sources += built
+            // A state contributes in two places, not one. Its hand-written sources lead,
+            // because they encode judgement a table cannot — ADOT's exclude a whole route
+            // namespace and disambiguate two routes 2 m apart — and a state route must be
+            // claimed before a county source infers a municipal owner for a pin inside city
+            // limits. Its *statewide table* is a fallback and belongs below the county: ADOT's
+            // HPMS names an owner for every road in Arizona, and left in the state slot it beat
+            // MCDOT's answer on Maricopa's own county roads, losing the distinction between a
+            // road the county accepted and one it merely maintains.
+            let state = catalog.profile(forState: jurisdiction.stateFIPS)
+            if let state {
+                let built = self.split(state)
+                sources += built.leading
+                stateFallback = built.trailing
+                if !built.leading.isEmpty || !built.trailing.isEmpty {
                     names.append(state.displayName)
                     state.dateCaveat.map { caveats.append($0) }
                     level = max(level, .state)
@@ -79,6 +90,7 @@ public struct PipelineFactory: Sendable {
             }
         }
 
+        sources += stateFallback
         sources += nationalSources()
         let coverage = Coverage(level: level, jurisdiction: jurisdiction, profileNames: names,
                                 dateCaveats: caveats, catalogCapturedOn: catalog.capturedDate)
@@ -131,15 +143,35 @@ public struct PipelineFactory: Sendable {
     /// Texas is why: its inventory reads perfectly well through `flatInventory`, and rewriting
     /// that as bespoke to bolt on a project source would throw away a tested name join to gain
     /// nothing. A state can now have a hand-written helper without giving up the generic path.
+    /// A profile's sources split into what runs before the county tier and what runs after.
+    ///
+    /// Only a profile marked `compiledFirst` splits: its hand-written sources lead and its
+    /// generic table trails. Everything else runs as one block, exactly as before.
+    private func split(_ profile: CoverageProfile) -> (leading: [any RoadSource],
+                                                       trailing: [any RoadSource]) {
+        guard profile.runsCompiledFirst else { return (sources(for: profile), []) }
+        let compiled = (profile.sourceIDs ?? []).compactMap { self.compiled(id: $0) }
+        let generic: [any RoadSource]
+        switch profile.adapter {
+        case .flatInventory:
+            generic = [FlatInventorySource(profile: profile, client: client, now: now)].compactMap { $0 }
+        case .lrsEvents:
+            generic = [LRSEventSource(profile: profile, client: client, now: now)].compactMap { $0 }
+        case .bespoke:
+            generic = []
+        }
+        return (compiled, generic)
+    }
+
     private func sources(for profile: CoverageProfile) -> [any RoadSource] {
         let compiled = (profile.sourceIDs ?? []).compactMap { self.compiled(id: $0) }
         switch profile.adapter {
         case .flatInventory:
-            return [FlatInventorySource(profile: profile, client: client, now: now)]
-                .compactMap { $0 } + compiled
+            let own = [FlatInventorySource(profile: profile, client: client, now: now)].compactMap { $0 }
+            return profile.runsCompiledFirst ? compiled + own : own + compiled
         case .lrsEvents:
-            return [LRSEventSource(profile: profile, client: client, now: now)]
-                .compactMap { $0 } + compiled
+            let own = [LRSEventSource(profile: profile, client: client, now: now)].compactMap { $0 }
+            return profile.runsCompiledFirst ? compiled + own : own + compiled
         case .bespoke:
             return compiled
         }

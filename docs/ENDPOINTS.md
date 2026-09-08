@@ -1581,3 +1581,73 @@ drive card already followed, applied where the data is read.
 
 Irving is the near miss and would be worth revisiting: ownership without a date still beats
 TxDOT's blanket municipal code, and the layer is city-wide.
+
+---
+
+## 17. Finishing Arizona — one service covers the whole state
+
+Until now Arizona meant Maricopa County in depth and ADOT's state routes. Everywhere else — Pima,
+Pinal, Yavapai, Mohave, Coconino, and every city outside Maricopa — got a TIGER name and nothing
+else. **Tucson, Mesa, Chandler, Gilbert, Scottsdale, Peoria and Phoenix publish no usable street
+service of their own**; all were probed.
+
+```
+https://services6.arcgis.com/clPWQMwZfdWn4MQZ/arcgis/rest/services/ADOT_2025_Highway_Performance_Monitoring_System_(HPMS)_Roadway_Data/FeatureServer
+```
+
+ADOT publishes its HPMS submission as a **62-layer linear-referenced service** — the same shape
+as Louisiana's, and readable by the same generic adapter with no new Swift:
+
+| Layer | What | Events |
+|---|---|---|
+| 6 | `AllRoadsNetwork` (the route layer) | 132,581 routes, 126,320 of them non-ADOT |
+| 33 | `OwnershipAndMaintenance` | **241,126** |
+| 21 | `FunctionalSystem` | 263,393 |
+| 61 | `YearLastImprovement` | 14,901 |
+| 60 | `YearLastConstruction` | 7,264 |
+| 0 | `AADT` | 27,894 |
+
+### `Ownership_Value` is the best-shaped ownership field found anywhere
+
+218 values written as `PREFIX-Name (code)` — `PHX-Phoenix (4)`, `MMA-Maricopa County DOT (2)`,
+`TUC-Tucson (4)`, `PNF-Prescott NF (64)`. **The code gives the kind and the text gives the body**,
+so a card names the actual city statewide without a table of Arizona municipalities.
+
+It also carries **21,600 segments marked private** and **10,213 belonging to gated owners'
+associations** — a real answer to who built a road: nobody public did. Both need the *name*
+rather than the code, because ADOT files `PRI` under HPMS 80 ("Other"), which decodes to nothing.
+Three values are admissions and yield no owner: `TBD-To be determined after 2013`,
+`UNK-Unknown (yet Fed FC)`, and `NBY-Not Built Yet - platted roads` (468 segments platted but
+never constructed).
+
+### The statewide table belongs *below* the county, not beside the state
+
+Wired into the state slot it worked and was wrong. ADOT names an owner for **every** road in
+Arizona, so on Lone Mountain Rd it beat MCDOT and the card lost the distinction between a road
+the county accepted and one it merely maintains as a courtesy (`countyCourtesy`, 616 segments).
+
+So a state profile now contributes in two places. Its hand-written sources lead — they exclude a
+route namespace, disambiguate two routes 2 m apart, and read a project number out of free text,
+and a state route must be claimed before a county source infers a municipal owner for a pin
+inside city limits. Its statewide table trails the county tier as a fallback. That is what
+`compiledFirst` means on a profile.
+
+### The bug this exposed, which had been shipping
+
+`ArcGISClient.query(layer:field:equals:)` restricted values to letters, digits, `-` and `_`.
+ADOT publishes **fixed-width route ids**: `"10N GRANADA             AVE     "`. Stripping the
+padding turned every Arizona event join into a query matching nothing, and it failed **silently**
+— an empty result is indistinguishable from a road with no recorded owner. Spaces now survive;
+quotes still do not, so a value cannot close its own literal.
+
+Note also that layer 6 holds a parent route *and* its carriageways (`US-180`, `US-180 (1)`,
+`US-180 (2)`, `US-180 nonCard`) while the event tables key only on the carriageways — ADOT's
+"every road stored twice" problem from §3.1, in a second service. It affects only the ~576
+routes with a `RouteCardinality`, which are exactly the state routes ATIS already answers first.
+
+### Texas, finished
+
+Irving is the last Texas city with anything to add: 9,133 centrelines, **no construction date of
+any kind**, and an `OWNERSHIP` field naming CITY (5,934), STATE (2,182), **PRIVATE (820)** and
+slivers owned by DFW airport, Dallas and Coppell. TxDOT files every one of those as a bare
+municipal code, so naming the body — and the 820 private streets — is the whole contribution.

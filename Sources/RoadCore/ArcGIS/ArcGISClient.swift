@@ -92,11 +92,18 @@ public struct ArcGISClient: Sendable {
         and qualifier: (field: String, value: String)? = nil,
         outFields: String = "*"
     ) async throws -> (features: ArcGISFeatureSet, url: URL) {
+        // Restricted to the characters real identifiers use, so a service-supplied value
+        // cannot alter the clause: a quote cannot survive this, and nothing else can end a
+        // quoted SQL string. **A space has to survive it.** ADOT publishes fixed-width route
+        // ids — `"10N GRANADA             AVE     "` — and stripping the padding turned every
+        // Arizona event join into a query that matched nothing, silently. The other callers
+        // pass parcel numbers, project numbers and integer keys, none of which contain spaces.
         let escape = { (raw: String) in
-            raw.filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
+            raw.filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == " " }
         }
         let safe = escape(value)
-        guard !safe.isEmpty else { return (ArcGISFeatureSet(features: []), layer.queryURL) }
+        guard !safe.trimmingCharacters(in: .whitespaces).isEmpty
+        else { return (ArcGISFeatureSet(features: []), layer.queryURL) }
 
         // Structured rather than a caller-supplied clause fragment, so a qualifier coming from
         // the remote catalog gets exactly the same escaping as the key and cannot widen the

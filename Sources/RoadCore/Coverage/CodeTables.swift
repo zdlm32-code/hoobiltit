@@ -362,6 +362,71 @@ public enum CodeTables {
         return .maintained
     }
 
+    // MARK: - ADOT HPMS ownership
+
+    /// ADOT's `Ownership_Value`, which names the body *and* carries its HPMS code.
+    ///
+    /// The best-shaped ownership field found anywhere: 218 distinct values over 241,126
+    /// statewide events, written as `PREFIX-Name (code)` — `PHX-Phoenix (4)`,
+    /// `MMA-Maricopa County DOT (2)`, `PNF-Prescott NF (64)`. The code gives the *kind* and
+    /// the text gives the *body*, so a card can say "Phoenix" rather than "city or municipal
+    /// highway agency", statewide, without a table of Arizona municipalities.
+    ///
+    /// This is what closes Arizona outside Maricopa County: Tucson (8,418 events), Mesa
+    /// (8,746), Chandler, Gilbert, Scottsdale, Peoria and the rest publish no street data of
+    /// their own, and ADOT names them all. It also carries 21,600 segments marked private and
+    /// 10,213 belonging to gated owners' associations, which is a real answer to who built a
+    /// road: nobody public did.
+    public static func owner(adot value: String?) -> RoadOwner? {
+        guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+        else { return nil }
+
+        // Trailing "(4)" is the HPMS code. "()" and "(--)" are ADOT's way of writing none.
+        var code: Int?
+        var name = raw
+        if let open = raw.lastIndex(of: "("), raw.hasSuffix(")") {
+            let inside = raw[raw.index(after: open)..<raw.index(before: raw.endIndex)]
+            code = Int(inside)
+            name = String(raw[raw.startIndex..<open])
+        }
+        // Leading "PHX-" is an internal key, not part of the name.
+        if let dash = name.firstIndex(of: "-"),
+           name.distance(from: name.startIndex, to: dash) <= 4 {
+            name = String(name[name.index(after: dash)...])
+        }
+        name = name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return nil }
+        let upper = name.uppercased()
+
+        // Placeholders, and a category that is an admission rather than an owner.
+        if upper.hasPrefix("TO BE DETERMINED") || upper.hasPrefix("UNKNOWN")
+            || upper == "TBD" { return nil }
+        // 468 segments platted but never constructed. Not an owner, and worth not guessing at.
+        if upper.hasPrefix("NOT BUILT YET") { return nil }
+        // Both the private categories, whichever code they carry: `PRI` is filed under HPMS
+        // 80 ("Other"), which would otherwise decode to nothing.
+        if upper.hasPrefix("PRIVATE") || upper.hasPrefix("OWNERS ASSOCIATION") {
+            return .privateOwner
+        }
+        // The state's own roads carry no code at all.
+        if code == nil {
+            return upper.contains("DEPARTMENT OF TRANSPORTATION") ? .state(agency: name) : nil
+        }
+
+        switch code {
+        case 1, 11, 21:              return .state(agency: name)
+        case 2:                      return .county(agency: name)
+        case 3, 4, 12, 25:           return .municipality(name: name, fullName: name)
+        case 26, 27:                 return .privateOwner
+        case 31, 32:                 return .tollAuthority(agency: name)
+        case 50, 62:                 return .tribal(agency: name)
+        case 60, 63, 64, 66, 67, 68, 69, 70, 72, 73, 74:
+            return .federal(agency: name)
+        // 40 "other public instrumentality" and 80 "other" name a category, not a body.
+        default:                     return nil
+        }
+    }
+
     // MARK: - Lookup
 
     /// Reads a code that may arrive as `4`, `"4"`, `"04"` or `"04-Municipal or City Hwy

@@ -316,7 +316,11 @@ struct TxDOTTests {
         let clause = try #require(URLComponents(url: transport.log.all[0],
                                                 resolvingAgainstBaseURL: false)?
             .queryItems?.first { $0.name == "where" }?.value)
-        #expect(clause == "GID='52353' AND SYSTEM='OffOR11'")
+        // Spaces survive escaping — ADOT publishes fixed-width route ids that need them —
+        // but quotes do not, so the value cannot close its own literal and the clause
+        // stays a single comparison.
+        #expect(clause == "GID='52353' AND SYSTEM='Off OR 11'")
+        #expect(!clause.contains("\""), "no quote survives escaping")
     }
 
     @Test("TxDOT's underscore null never reaches the screen as a road name")

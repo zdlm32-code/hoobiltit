@@ -33,13 +33,19 @@ struct PipelineFactoryTests {
         // county source infers a municipal owner.
         let shipped = ["adot.atis", "adot.funding", "mcdot.rit", "mcdot.centerline",
                        "mcdot.declaration", "mcdot.projects", "mcassessor.parcels"]
-        #expect(ids(maricopa) == shipped + national)
+        // ADOT's statewide HPMS table now trails the county sources rather than joining the
+        // state ones. In the state slot it named an owner for every road in Arizona and so
+        // beat MCDOT on Maricopa's own county roads, losing the distinction between a road the
+        // county accepted and one it merely maintains as a courtesy.
+        #expect(ids(maricopa) == shipped + ["az.adot"] + national)
+        let order = ids(maricopa)
+        #expect(order.firstIndex(of: "mcdot.rit")! < order.firstIndex(of: "az.adot")!)
+        #expect(order.firstIndex(of: "adot.atis")! < order.firstIndex(of: "mcdot.rit")!)
 
         // v1 ran NBI between the county projects and the parcels. It now runs after them,
         // which is safe because the two touch disjoint fields — NBI writes `bridge`, the
         // parcel source writes `parcel` — and NBI's gate is a segment name, which the county
         // sources set well before either.
-        let order = ids(maricopa)
         #expect(order.firstIndex(of: "mcdot.rit")! < order.firstIndex(of: "usdot.nbi")!)
     }
 

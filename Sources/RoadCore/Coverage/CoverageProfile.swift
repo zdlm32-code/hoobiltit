@@ -55,6 +55,8 @@ public enum CodeTableReference: String, Sendable, Codable {
     case dallasRehabType
     /// City of Dallas `maint_resp`, which names a level of government rather than a body.
     case dallasMaintenance
+    /// ADOT's `Ownership_Value`, which names the body and carries its HPMS code.
+    case adotOwnership
 }
 
 /// How a year is stored. Verified encodings: PennDOT writes a plain `1916`, ADOT a compact
@@ -279,6 +281,14 @@ public struct CoverageProfile: Sendable, Codable, Hashable {
 
     /// `bespoke`: ids of sources compiled into the app, in pipeline order.
     public var sourceIDs: [String]?
+    /// Runs `sourceIDs` *before* a generic adapter's own source rather than after.
+    ///
+    /// Arizona needs it. Its hand-written ADOT sources know things the statewide HPMS tables
+    /// do not — they exclude the non-ADOT route namespace, disambiguate two coincident routes
+    /// 2 m apart, and recover a project number from free text — so on a state route they must
+    /// claim the answer first. HPMS then fills the roads they never covered, which is most of
+    /// the state.
+    public var compiledFirst: Bool?
 
     /// What drive mode should probe here, if this jurisdiction beats TIGER/Line.
     public var centreline: CentrelineProfile?
@@ -299,6 +309,7 @@ public struct CoverageProfile: Sendable, Codable, Hashable {
     /// Defaults applied on read rather than at decode. See `minSchema`.
     public var requiredSchema: Int { minSchema ?? 1 }
     public var matchMode: MatchMode { matching ?? .nearestLine }
+    public var runsCompiledFirst: Bool { compiledFirst ?? false }
     public var drawsParcels: Bool { hasParcels ?? false }
 
     public init(id: String, displayName: String, adapter: CoverageAdapter) {

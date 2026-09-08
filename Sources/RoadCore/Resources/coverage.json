@@ -7,13 +7,99 @@
     "04": {
       "id": "az.adot",
       "displayName": "Arizona Department of Transportation",
-      "adapter": "bespoke",
+      "adapter": "lrsEvents",
       "minSchema": 1,
       "sourceIDs": [
         "adot.atis",
         "adot.funding"
       ],
-      "_comment": "ATIS is an lrs-events service and the generic adapter could read most of it, but this source encodes judgement the schema deliberately cannot express: selecting between two coincident route namespaces 2 m apart, excluding the 'L - Local (Non-ADOT)' route type, gating ownership on Owner == DOT, and recovering a TRACS number from free text. Config-ifying those would invent five knobs used by one state."
+      "_comment": "The bespoke ADOT sources run FIRST (compiledFirst) because they encode judgement the HPMS tables cannot: selecting between two coincident route namespaces 2 m apart, excluding the 'L - Local (Non-ADOT)' route type, gating ownership on Owner == DOT, and recovering a TRACS number from free text. HPMS then answers everywhere they do not, which is most of the state: the route layer is 132581 features and 126320 of them are 'Non-ADOT Rte'. Ownership_Value is the find - 218 values shaped 'PHX-Phoenix (4)' giving both the body and its HPMS code, so Tucson, Mesa, Chandler, Gilbert, Scottsdale and Peoria are all named without a single city-level profile, along with 21600 private and 10213 gated-association segments. YearLastConstruction is only 7264 events and is essentially the state system, the same ground ATIS already covers more richly.",
+      "service": "https://services6.arcgis.com/clPWQMwZfdWn4MQZ/arcgis/rest/services/ADOT_2025_Highway_Performance_Monitoring_System_(HPMS)_Roadway_Data/FeatureServer",
+      "compiledFirst": true,
+      "routeLayer": 6,
+      "routeIDField": "RouteId",
+      "routeFields": {
+        "name": [
+          "RouteNameShort"
+        ],
+        "nullStrings": [
+          "",
+          "UNKNOWN",
+          "N/A",
+          "TBD"
+        ]
+      },
+      "eventLayers": [
+        {
+          "layer": 33,
+          "displayName": "ADOT ownership and maintenance",
+          "routeIDField": "RouteId",
+          "fromMeasureField": "FromMeasure",
+          "toMeasureField": "ToMeasure",
+          "fields": {
+            "ownership": "Ownership_Value",
+            "ownershipTable": "adotOwnership",
+            "nullStrings": [
+              "",
+              "TBD",
+              "UNK"
+            ]
+          }
+        },
+        {
+          "layer": 60,
+          "displayName": "ADOT year last construction",
+          "routeIDField": "RouteId",
+          "fromMeasureField": "FromMeasure",
+          "toMeasureField": "ToMeasure",
+          "fields": {
+            "yearBuilt": "YearLastConstruction",
+            "yearEncoding": "yearNumber",
+            "nullNumbers": [
+              0
+            ]
+          }
+        },
+        {
+          "layer": 61,
+          "displayName": "ADOT year last improvement",
+          "routeIDField": "RouteId",
+          "fromMeasureField": "FromMeasure",
+          "toMeasureField": "ToMeasure",
+          "fields": {
+            "yearImproved": "YearLastImprovement",
+            "yearEncoding": "yearNumber",
+            "nullNumbers": [
+              0
+            ]
+          }
+        },
+        {
+          "layer": 21,
+          "displayName": "ADOT functional system",
+          "routeIDField": "RouteId",
+          "fromMeasureField": "FromMeasure",
+          "toMeasureField": "ToMeasure",
+          "fields": {
+            "functionalClass": "FunctionalSystem",
+            "functionalClassTable": "fhwaFunctionalClass"
+          }
+        },
+        {
+          "layer": 0,
+          "displayName": "ADOT traffic counts",
+          "routeIDField": "RouteId",
+          "fromMeasureField": "FromMeasure",
+          "toMeasureField": "ToMeasure",
+          "fields": {
+            "aadt": "AADT",
+            "nullNumbers": [
+              0
+            ]
+          }
+        }
+      ],
+      "dateCaveat": "ADOT records a construction year for about 7,000 stretches, nearly all of them state routes; elsewhere in Arizona it names the owner but publishes no date."
     },
     "48": {
       "id": "tx.txdot",
@@ -541,6 +627,48 @@
       },
       "_comment": "17359 segments carrying BOTH an install and a reconstruction date, which almost nothing else does. The fields named Built and Reconstructed are entirely null on every row and are NOT the ones to read; Installed (13125 populated) and Replaced (13321) are. Each carries one bulk-loaded default: 1908-06-09 on 2209 Installed rows and 2008-06-12 on 1370 Replaced rows, single exact dates against roughly 1280 distinct values spread under 1% each, so both epochs are filtered. Custodian names the responsible body and covers slivers of Pantego, Kennedale, Dalworthington Gardens, Mansfield and Grand Prairie as well as Arlington's own 12984.",
       "dateCaveat": "Arlington records when a street was installed and when it was last replaced; about a quarter of its segments carry neither."
+    },
+    "4837000": {
+      "id": "tx.irving.centerline",
+      "displayName": "City of Irving road centreline",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services3.arcgis.com/OfsJXUlu8pSkbl7B/arcgis/rest/services/GIS_SDE_RoadCenterline/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "STREET_NAME",
+        "ROAD",
+        "OWNERSHIP",
+        "ROADCLASS",
+        "SPEEDLIMIT"
+      ],
+      "fields": {
+        "name": [
+          "STREET_NAME",
+          "ROAD"
+        ],
+        "ownership": "OWNERSHIP",
+        "ownershipTable": "namedAgency",
+        "ownerNames": {
+          "CITY": "City of Irving",
+          "IRVING": "City of Irving",
+          "STATE": "Texas Department of Transportation",
+          "DALLAS": "City of Dallas",
+          "COPPELL": "City of Coppell",
+          "AIRPORT": "Dallas Fort Worth International Airport",
+          "OTHER": ""
+        },
+        "functionalClass": "ROADCLASS",
+        "nullStrings": [
+          "",
+          "UNKNOWN",
+          "N/A",
+          "TBD",
+          "OTHER"
+        ]
+      },
+      "_comment": "9133 centrelines. Publishes no construction date of any kind - MODIFIEDDATE is a GIS edit stamp - and earns its place purely on ownership: OWNERSHIP names CITY 5934, STATE 2182, PRIVATE 820, plus slivers owned by DFW airport, Dallas and Coppell. TxDOT files every one of these as a bare municipal code, so naming the body is the whole contribution, and 820 private streets is a real answer TxDOT cannot give. MAINTBY is a 1/-1/-2 code with no published meaning and is not read.",
+      "dateCaveat": "Irving publishes who owns each street but no construction or resurfacing dates."
     }
   }
 }

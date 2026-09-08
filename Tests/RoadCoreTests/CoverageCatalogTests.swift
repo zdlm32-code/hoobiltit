@@ -87,11 +87,16 @@ struct CoverageCatalogTests {
         #expect(la.dateCaveat != nil)
     }
 
-    @Test("Arizona and Maricopa stay bespoke, in the shipped pipeline order")
+    @Test("Arizona keeps its hand-written sources, with the statewide table behind them")
     func arizonaStaysBespoke() throws {
         let az = try #require(CoverageCatalog.bundled.profile(forState: "04"))
-        #expect(az.adapter == .bespoke)
+        // Arizona reads the statewide HPMS tables through the generic LRS adapter *and* keeps
+        // its two compiled sources, which run first and are followed by the table only where
+        // they found nothing.
+        #expect(az.adapter == .lrsEvents)
         #expect(az.sourceIDs == ["adot.atis", "adot.funding"])
+        #expect(az.runsCompiledFirst)
+        #expect(az.eventLayers?.contains { $0.fields.ownershipTable == .adotOwnership } == true)
 
         let maricopa = try #require(CoverageCatalog.bundled.profile(forCounty: "04013"))
         #expect(maricopa.adapter == .bespoke)
