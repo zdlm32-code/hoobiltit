@@ -93,13 +93,13 @@ struct FlatInventoryTests {
 private let localSegmentJSON = """
 {"features":[{"attributes":{"STREET_NAME":"SIXTEENTH ST","ST_RT_NO":"G043","YR_BUILT":0,\
 "YR_RESURF":0,"JURIS":"5","MAINT_RESPON_IND":null,"CUR_AADT":6030},\
-"geometry":{"paths":[[[-75.1652,39.9526],[-75.1652,39.9530]]]}}]}
+"geometry":{"paths":[[[-75.16558,39.95851],[-75.16558,39.95891]]]}}]}
 """
 
 private let stateSegmentJSON = """
 {"features":[{"attributes":{"STREET_NAME":"SIXTEENTH ST","ST_RT_NO":"3027","YR_BUILT":1916,\
 "YR_RESURF":2004,"JURIS":"1","MAINT_RESPON_IND":"40","CUR_AADT":10286},\
-"geometry":{"paths":[[[-75.1652,39.9526],[-75.1652,39.9530]]]}}]}
+"geometry":{"paths":[[[-75.16558,39.95851],[-75.16558,39.95891]]]}}]}
 """
 
 // MARK: - Louisiana, an LRS
@@ -199,3 +199,158 @@ struct LRSEventTests {
         #expect(fragment.notes.first?.outcome == .foundNothing)
     }
 }
+
+// MARK: - Texas, a flat inventory whose names live on another layer
+
+@Suite("TxDOT — an inventory joined to its street names")
+struct TxDOTTests {
+    /// Mid-block on San Jacinto Blvd in downtown Austin, taken from the layer's own geometry
+    /// rather than eyeballed. The envelope returns eleven segments and the pin sits 0.1 m from
+    /// this one; the deliberate hazard is Loop 343, a TxDOT state route carrying 25,046
+    /// vehicles a day, 54.7 m away.
+    let sanJacinto = RoadQuery(latitude: 30.263227, longitude: -97.741957)
+
+    private func source(_ transport: FixtureTransport) -> FlatInventorySource {
+        FlatInventorySource(profile: CoverageCatalog.bundled.profile(forState: "48")!,
+                            client: ArcGISClient(transport: transport),
+                            now: { fixedNow })!
+    }
+
+    private var austin: FixtureTransport {
+        FixtureTransport([
+            "TxDOT_Roadway_Inventory/FeatureServer/0": .fixture("txdot_inventory_austin"),
+            "TxDOT_Roadways/FeatureServer/0": .fixture("txdot_roadways_sanjacinto"),
+        ])
+    }
+
+    @Test("Names the road from the joined layer and owns it from the inventory")
+    func joinsNameToOwnership() async throws {
+        let fragment = try await source(austin).fetch(sanJacinto)
+        // The inventory has 133 fields and no street name; this one is joined on GID.
+        #expect(fragment.segmentName?.value == "SAN JACINTO BLVD")
+        let owner = try #require(fragment.owner?.value)
+        #expect(owner == .municipality(name: "City or municipal highway agency",
+                                       fullName: "City or municipal highway agency"))
+        #expect(fragment.classification?.value == "Major collector")
+        #expect(fragment.trafficCount?.value == 4_335)
+    }
+
+    /// The regression this join exists to prevent.
+    @Test("The state route 54.7 m away does not lend its owner to a city street")
+    func nearestSegmentWinsOverTheArterial() async throws {
+        let fragment = try await source(austin).fetch(sanJacinto)
+        let owner = try #require(fragment.owner?.value)
+        #expect(owner != .state(agency: "Texas Department of Transportation"))
+        // Loop 343's traffic count is the tell: picking it up would show 25,046 here.
+        #expect(fragment.trafficCount?.value != 25_046)
+    }
+
+    @Test("Name and owner always describe the same segment")
+    func nameAndOwnerAgree() async throws {
+        let fragment = try await source(austin).fetch(sanJacinto)
+        // Both provenances trace to the one GID the pin matched. A city street named by the
+        // national tier while the state tier owned the arterial beside it is exactly the
+        // incoherent card this adapter must not produce.
+        #expect(fragment.segmentName != nil && fragment.owner != nil)
+        #expect(fragment.owner?.confidence == .spatial)
+    }
+
+    @Test("Texas says plainly that it has no construction year")
+    func statesTheDateGap() async throws {
+        let fragment = try await source(austin).fetch(sanJacinto)
+        #expect(fragment.yearLastConstruction == nil)
+        #expect(fragment.yearLastImprovement == nil)
+        #expect(fragment.notes.first?.detail?.contains("no construction year") == true)
+    }
+
+    @Test("A failed join costs the name, not the ownership")
+    func joinFailureIsSurvivable() async throws {
+        var routes = austin.routes
+        routes["TxDOT_Roadways/FeatureServer/0"] = .status(500)
+        let fragment = try await source(FixtureTransport(routes)).fetch(sanJacinto)
+        #expect(fragment.segmentName == nil, "the name layer is what failed")
+        #expect(fragment.owner != nil, "ownership came from the inventory and survives")
+        #expect(fragment.trafficCount?.value == 4_335)
+    }
+
+    @Test("The join is keyed on the integer GID without a decimal point")
+    func joinKeyIsAnInteger() async throws {
+        let transport = austin
+        _ = try await source(transport).fetch(sanJacinto)
+        let joinQuery = try #require(transport.log.all.first {
+            $0.absoluteString.contains("TxDOT_Roadways")
+        })
+        // GID arrives as a JSON number. Stringified naively it would be "52353.0" and match
+        // nothing at all, silently costing every Texas road its name.
+        #expect(joinQuery.absoluteString.contains("52353"))
+        #expect(!joinQuery.absoluteString.contains("52353.0"))
+    }
+
+    @Test("The join asks only for rows whose label is really a street name")
+    func joinIsFilteredToOffSystem() async throws {
+        let transport = austin
+        _ = try await source(transport).fetch(sanJacinto)
+        let joinQuery = try #require(transport.log.all.first {
+            $0.absoluteString.contains("TxDOT_Roadways")
+        })
+        // MAP_LBL is a map *shield* label. On-system rows carry "35", "175", "10C" — never a
+        // name — so without this Interstate 35 came back named "35".
+        let clause = try #require(URLComponents(url: joinQuery, resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == "where" }?.value)
+        #expect(clause.contains("GID='52353'"))
+        #expect(clause.contains("SYSTEM='Off'"))
+    }
+
+    @Test("A qualifier cannot be used to widen the join")
+    func qualifierIsEscaped() async throws {
+        // The catalog is fetched remotely, so its values are escaped exactly like the key.
+        let layer = try #require(ArcGISLayer("https://example.com/rest/services/X/MapServer",
+                                             layer: 0))
+        let transport = FixtureTransport(["X/MapServer/0": .body(#"{"features":[]}"#)])
+        _ = try? await ArcGISClient(transport: transport)
+            .query(layer: layer, field: "GID", equals: "52353",
+                   and: (field: "SYSTEM", value: "Off' OR '1'='1"))
+        let clause = try #require(URLComponents(url: transport.log.all[0],
+                                                resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == "where" }?.value)
+        #expect(clause == "GID='52353' AND SYSTEM='OffOR11'")
+    }
+
+    @Test("TxDOT's underscore null never reaches the screen as a road name")
+    func underscoreSentinel() async throws {
+        // Toll rows publish MAP_LBL = "_". Shown raw, the card reads: road name "_".
+        var routes = austin.routes
+        routes["TxDOT_Roadways/FeatureServer/0"] =
+            .body(#"{"features":[{"attributes":{"GID":52353,"MAP_LBL":"_","SYSTEM":"Off"}}]}"#)
+        let fragment = try await source(FixtureTransport(routes)).fetch(sanJacinto)
+        #expect(fragment.segmentName == nil, #""_" is a null, not a name"#)
+        #expect(fragment.owner != nil, "the inventory's own fields are unaffected")
+    }
+
+    @Test("An inventory segment too far away is declined")
+    func proximityGate() async throws {
+        // Nothing within 60 m: the state tier stands aside and the national tier answers.
+        let farAway = FixtureTransport([
+            "TxDOT_Roadway_Inventory/FeatureServer/0": .body(distantSegmentJSON),
+        ])
+        let fragment = try await source(farAway).fetch(sanJacinto)
+        #expect(!fragment.contributesAnything)
+        #expect(fragment.notes.first?.outcome == .foundNothing)
+        #expect(fragment.notes.first?.detail?.contains("too far") == true)
+    }
+
+    @Test("No road here is a normal answer")
+    func emptyIsFine() async throws {
+        let empty = FixtureTransport(["TxDOT_Roadway_Inventory/FeatureServer/0":
+                                        .body(#"{"features":[]}"#)])
+        let fragment = try await source(empty).fetch(sanJacinto)
+        #expect(!fragment.contributesAnything)
+        #expect(fragment.notes.first?.outcome == .foundNothing)
+    }
+}
+
+/// One state-owned segment about 250 m north of the San Jacinto pin.
+private let distantSegmentJSON = """
+{"features":[{"attributes":{"GID":7196,"ADMIN":1,"F_SYSTEM":4,"ADT_CUR":25046},
+"geometry":{"paths":[[[-97.741957,30.265500],[-97.741957,30.266000]]]}}]}
+"""

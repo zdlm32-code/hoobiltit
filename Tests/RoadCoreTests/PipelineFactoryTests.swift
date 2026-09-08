@@ -12,6 +12,9 @@ private let eastBatonRouge = Jurisdiction(stateFIPS: "22", countyFIPS: "22033",
                                           countyName: "East Baton Rouge Parish")
 private let harris = Jurisdiction(stateFIPS: "48", countyFIPS: "48201",
                                   countyName: "Harris County", placeName: "Houston city")
+/// Massachusetts has no profile, so this is the current example of the national floor.
+private let suffolk = Jurisdiction(stateFIPS: "25", countyFIPS: "25025",
+                                   countyName: "Suffolk County", placeName: "Boston city")
 
 private func ids(_ jurisdiction: Jurisdiction?) -> [String] {
     PipelineFactory().pipeline(for: jurisdiction).sources.map(\.id)
@@ -54,12 +57,21 @@ struct PipelineFactoryTests {
         #expect(PipelineFactory().pipeline(for: eastBatonRouge).coverage.level == .state)
     }
 
+    @Test("Texas resolves through the flat-inventory adapter")
+    func texas() {
+        // Harris County has no county profile, so Texas is state-tier only: TxDOT owns and
+        // classifies the road, and the join gives it a name the national tier would otherwise
+        // have had to supply.
+        #expect(ids(harris) == ["tx.txdot"] + national)
+        #expect(PipelineFactory().pipeline(for: harris).coverage.level == .state)
+    }
+
     @Test("An unmapped county falls to the national tier alone")
     func unmappedCounty() {
-        // Texas is not in the catalog. The app must still name the road rather than going
-        // silent, and must say plainly that nothing local is mapped.
-        #expect(ids(harris) == national)
-        let coverage = PipelineFactory().pipeline(for: harris).coverage
+        // Massachusetts is not in the catalog. The app must still name the road rather than
+        // going silent, and must say plainly that nothing local is mapped.
+        #expect(ids(suffolk) == national)
+        let coverage = PipelineFactory().pipeline(for: suffolk).coverage
         #expect(coverage.level == .national)
         #expect(coverage.profileNames.isEmpty)
     }

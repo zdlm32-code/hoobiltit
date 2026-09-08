@@ -9,10 +9,13 @@ road-ownership dataset and pretending otherwise would be a promise the data cann
 | Tier | Where | What you get |
 |---|---|---|
 | County | Maricopa County, AZ | Everything: owner, project, plat, declaration, pavement, parcels |
-| State | Arizona, Pennsylvania, Louisiana | Name, owner, construction and improvement year where the state publishes one |
+| State | Arizona, Pennsylvania, Louisiana, Texas | Name, owner, construction and improvement year where the state publishes one |
 | National | Everywhere in the US | Street name from Census TIGER/Line, ownership if the road is on the National Highway System, a build year if you are on a bridge |
 
-Adding a state is an edit to `Sources/RoadCore/Resources/coverage.json`, not a code change.
+Adding a state is an edit to `Sources/RoadCore/Resources/coverage.json`, not a code change — so
+long as it fits an adapter that already exists. Texas needed one new mechanism (a second layer
+joined on a key, because TxDOT publishes 133 fields and not one of them is a street name); the
+next state shaped like it will not.
 
 ## Start here
 
@@ -86,7 +89,7 @@ order is load-bearing throughout.
 
 | Source | Answers |
 |---|---|
-| `FlatInventorySource` | a state DOT publishing one denormalised inventory layer — PennDOT today |
+| `FlatInventorySource` | a state DOT publishing one denormalised inventory layer — PennDOT and TxDOT today, the latter joined to a second layer for its street names |
 | `LRSEventSource` | a state DOT publishing linear-referenced event tables, joined on route id and measure — Louisiana today |
 
 ### National, running everywhere

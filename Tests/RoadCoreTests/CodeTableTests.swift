@@ -53,6 +53,44 @@ struct CodeTableTests {
         }
     }
 
+    @Test("TxDOT ADMIN covers every code the service emits, and is not read as HPMS")
+    func txdotAdminIsComplete() {
+        // The full 1...16 range, from a groupBy over all 1,027,891 statewide segments.
+        for code in 1...16 {
+            #expect(CodeTables.owner(txdot: code) != nil, "ADMIN \(code) decodes to nothing")
+        }
+        // The trap: HPMS defines nothing at 5-10 or 13-16, so reading ADMIN as HPMS would
+        // drop real owners on the floor for four of Texas's sixteen codes.
+        for code in [5, 6, 7, 8, 9, 10, 13, 14, 15, 16] {
+            #expect(CodeTables.hpmsOwnership[code] == nil,
+                    "\(code) exists in HPMS after all — the tables need re-deriving")
+        }
+    }
+
+    @Test("TxDOT ADMIN maps to the owner its HSYS cross-tab proves")
+    func txdotOwnerMapping() {
+        // 1 covers every TxDOT-maintained system: IH, US, SH, FM, RM, SL, business routes.
+        #expect(CodeTables.owner(txdot: 1) == .state(agency: "Texas Department of Transportation"))
+        // 2 is CR and nothing else; 4 is LS and nothing else.
+        #expect(CodeTables.owner(txdot: 2) == .county(agency: "County highway agency"))
+        if case .municipality = CodeTables.owner(txdot: 4) {} else { Issue.record("4 is LS, municipal") }
+        // 5, 6 and 16 are the TL rows — HWY reads TL0002, TL0011 — plus tolled state loops.
+        for code in [5, 6, 16] {
+            if case .tollAuthority = CodeTables.owner(txdot: code) {} else {
+                Issue.record("ADMIN \(code) is a toll facility")
+            }
+        }
+        // 3 and 7-15 are all FD. Which federal agency is unrecoverable: HWY is null on every
+        // one of those 5,165 rows, so the code claims only "federal".
+        for code in [3] + Array(7...15) {
+            if case .federal = CodeTables.owner(txdot: code) {} else {
+                Issue.record("ADMIN \(code) is HSYS FD, a federal agency")
+            }
+        }
+        #expect(CodeTables.owner(txdot: 17) == nil)
+        #expect(CodeTables.owner(txdot: 0) == nil)
+    }
+
     @Test("Functional class covers exactly the values Louisiana publishes")
     func functionalClass() {
         #expect(CodeTables.functionalClass.keys.sorted() == [1, 2, 3, 4, 5, 6, 7])

@@ -89,14 +89,26 @@ public struct ArcGISClient: Sendable {
         layer: ArcGISLayer,
         field: String,
         equals value: String,
+        and qualifier: (field: String, value: String)? = nil,
         outFields: String = "*"
     ) async throws -> (features: ArcGISFeatureSet, url: URL) {
-        let safe = value.filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
+        let escape = { (raw: String) in
+            raw.filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
+        }
+        let safe = escape(value)
         guard !safe.isEmpty else { return (ArcGISFeatureSet(features: []), layer.queryURL) }
+
+        // Structured rather than a caller-supplied clause fragment, so a qualifier coming from
+        // the remote catalog gets exactly the same escaping as the key and cannot widen the
+        // query. TxDOT needs one: its name field holds a street name only on off-system rows.
+        var clause = "\(field)='\(safe)'"
+        if let qualifier, !escape(qualifier.value).isEmpty {
+            clause += " AND \(qualifier.field)='\(escape(qualifier.value))'"
+        }
 
         var components = URLComponents(url: layer.queryURL, resolvingAgainstBaseURL: false)!
         components.queryItems = [
-            .init(name: "where", value: "\(field)='\(safe)'"),
+            .init(name: "where", value: clause),
             .init(name: "outFields", value: outFields),
             .init(name: "returnGeometry", value: "false"),
             .init(name: "f", value: "json"),

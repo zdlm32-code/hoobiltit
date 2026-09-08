@@ -16,11 +16,13 @@ NHS="https://geo.dot.gov/server/rest/services/National_Highway_System/MapServer/
 # State tier (§10)
 PENNDOT="https://gis.penndot.pa.gov/gis/rest/services/opendata/roadwaysegments/MapServer/0"
 LADOTD="https://gis.dotd.la.gov/road/rest/services/Roads_and_Highways_OpenData/MapServer"
+TXINV="https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadway_Inventory/FeatureServer/0"
+TXRDS="https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadways/FeatureServer/0"
 
 # Named test pins from docs/ENDPOINTS.md §8 (bash 3.2 has no associative arrays)
 PIN_NAMES="lonemountain goodyear i10 suncity williams mc85 mcdowell"
 # Pins outside Arizona, for the national and state tiers.
-NATIONAL_PINS="philadelphia phillylocal batonrouge perkins houston boston"
+NATIONAL_PINS="philadelphia phillylocal batonrouge perkins houston boston sanjacinto i35tx txcounty txtoll"
 pin_coords() {
   case "$1" in
     lonemountain) echo "-112.528617 33.767648" ;;  # unincorporated, full county hit; on the centreline, not 104 m off it
@@ -36,6 +38,10 @@ pin_coords() {
     perkins)      echo "-91.147830 30.418620" ;;   # PERKINS RD: the only 1971 row in that box
     houston)      echo "-95.3698 29.7604" ;;       # no profile: TIGER names it, NBI dates it
     boston)       echo "-71.0589 42.3601" ;;       # NHS ownership; TIGER's 60 m empty-box trap
+    sanjacinto)   echo "-97.741957 30.263227" ;;   # TxDOT: city street with a state route 54.7 m away
+    i35tx)        echo "-97.676922 30.490050" ;;   # TxDOT owns it; MAP_LBL is a shield label, TIGER names it
+    txcounty)     echo "-95.667328 31.654532" ;;   # ADMIN=2, COUNTY ROAD 2108
+    txtoll)       echo "-95.506920 29.564598" ;;   # ADMIN=6, Fort Bend Parkway
     *)            return 1 ;;
   esac
 }
@@ -91,6 +97,7 @@ probe_national() {
   q "LA/49    roadways"        "$LADOTD/49/query?geometry=$E&$ENVQ"
   q "LA/91    ownership"       "$LADOTD/91/query?geometry=$E&$ENVQ"
   q "LA/69    last construct"  "$LADOTD/69/query?geometry=$E&$ENVQ"
+  q "TxDOT    inventory"       "$TXINV/query?geometry=$E&$ENVQ"
   echo
 }
 
@@ -157,6 +164,34 @@ check_distance_quirk() {
   echo
 }
 
+# TxDOT's ownership decode is *derived*, not documented: the service publishes ADMIN: NO DOMAIN,
+# and the meaning of each code was inferred from its HSYS cross-tab (ENDPOINTS.md §10.2b). That
+# makes it the most fragile table shipped, so it gets the strictest guard. If TxDOT ever
+# republishes ADMIN in HPMS codes, every Texas owner inverts silently.
+check_txdot_codes() {
+  echo "=== TxDOT ADMIN ownership codes (ENDPOINTS.md §10.2b)"
+  local pairs
+  pairs=$(curl -s -m 90 "$TXINV/query?where=1%3D1&groupByFieldsForStatistics=ADMIN,HSYS&outStatistics=%5B%7B%22statisticType%22%3A%22count%22%2C%22onStatisticField%22%3A%22OBJECTID%22%2C%22outStatisticFieldName%22%3A%22n%22%7D%5D&returnGeometry=false&f=json" \
+          | python3 -c 'import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print("err"); raise SystemExit
+if "error" in d: print("err"); raise SystemExit
+g={}
+for f in d.get("features",[]):
+    a=f["attributes"]; g.setdefault(a["ADMIN"],set()).add(a["HSYS"])
+# The three codes that carry 99.5% of the state, and the one family each must map to.
+ok = g.get(2)=={"CR"} and g.get(4)=={"LS"} and "IH" in g.get(1,set()) and "CR" not in g.get(1,set())
+print("ok" if ok else "changed", max(g) if g else 0)')
+  echo "  ADMIN -> HSYS partition, highest code -> ${pairs:-?}"
+  case "$pairs" in
+    "ok 16") echo "  OK: 1 TxDOT, 2 county (CR only), 4 local (LS only); range still tops out at 16." ;;
+    ok*)     echo "  CHANGED: the partition holds but the code range moved — re-read §10.2b." ;;
+    err*)    echo "  INCONCLUSIVE: the request failed; re-run before drawing any conclusion." ;;
+    *)       echo "  CHANGED: re-read ENDPOINTS.md §10.2b before trusting the TxDOT decode table." ;;
+  esac
+  echo
+}
+
 # Feature count for a query URL, or the string "err" if the request did not come back.
 count() {
   curl -s -m 25 --retry 3 --retry-delay 1 --retry-all-errors "$1" | python3 -c '
@@ -180,4 +215,5 @@ else
   check_distance_quirk
   check_measure_join
   check_penndot_codes
+  check_txdot_codes
 fi

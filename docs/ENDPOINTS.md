@@ -939,7 +939,11 @@ Outside Arizona, one pin per tier. `./scripts/probe.sh <name>` runs any of them.
 | `-75.1652, 39.9526` | `phillylocal` | Same street, `JURIS=5` stretch — `YR_BUILT` is **0** and must not reach the record |
 | `-91.14597, 30.41927` | `batonrouge` | BALIS DR — name and owner, and deliberately **no year**: 1971 belongs to Perkins Rd |
 | `-91.14783, 30.41862` | `perkins` | PERKINS RD — the one 1971 row in that box, reached through the measure join |
-| `-95.3698, 29.7604` | `houston` | No profile: TIGER names Bagby St, NBI dates a 1959 bridge over Buffalo Bayou, card explains the gap |
+| `-95.3698, 29.7604` | `houston` | TxDOT: BAGBY ST joined from `MAP_LBL`, municipal, 1,096 AADT; NBI still dates the 1959 bridge over Buffalo Bayou |
+| `-97.741957, 30.263227` | `sanjacinto` | **Derived from the layer's geometry**: 0.1 m from SAN JACINTO BLVD with state-owned Loop 343 54.7 m away, inside the gate. Must come back *municipal*, 4,335 AADT — never Loop 343's 25,046 |
+| `-97.676922, 30.490050` | `i35tx` | `ADMIN=1`: TxDOT owns and classifies it, but `MAP_LBL` is the shield label `35`, so the name must come from TIGER as `I- 35` |
+| `-95.667328, 31.654532` | `txcounty` | `ADMIN=2`: COUNTY ROAD 2108, county-owned, 47 AADT |
+| `-95.506920, 29.564598` | `txtoll` | `ADMIN=6`: Fort Bend Parkway, toll authority, 41,183 AADT — an off-system row whose `MAP_LBL` *is* a real name |
 | `-71.0589, 42.3601` | `boston` | NHS ownership; also the TIGER 60 m empty-envelope regression |
 
 
@@ -1052,6 +1056,63 @@ The same bug was already live in Arizona. `atis_2_i10` returns five improvement 
 `atis_24_i10` returns **thirteen TRACS numbers** for `I 010`. `ADOTStateRouteSource` matched on
 route id and then took `.first`. It now ranks by proximity, and its twelve tests are unchanged.
 
+### 10.2b Texas — 133 fields, not one of them a name
+
+Two services, and neither is usable alone:
+
+```
+https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadway_Inventory/FeatureServer/0
+https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadways/FeatureServer/0
+```
+
+The inventory is 1,027,891 segments and **133 fields, of which none is a street name** —
+`ADMIN`, `F_SYSTEM`, `ADT_CUR`, `ADT_YEAR`, `NUM_LANES`, `HWY`, `HSYS`, `RIA_RTE_ID`. The names
+live on `TxDOT_Roadways` (574,990 rows, `MAP_LBL`), which in turn carries **no ownership**.
+
+**`GID` joins them 1:1**, and the server coerces a quoted integer, so the existing
+`field='value'` query works unchanged:
+
+```
+TxDOT_Roadways/0/query?where=GID='52353' AND SYSTEM='Off'   ->  MAP_LBL = SAN JACINTO BLVD
+```
+
+This is why `NameJoinProfile` exists, and the reason is not tidiness. Without the join the app
+names a Texas road from the national tier and owns it from the state tier — and the two
+routinely describe **different roads**. A mid-block pin on San Jacinto Blvd in downtown Austin
+has Loop 343, a state route at 25,046 AADT, **54.7 m away — inside the 60 m proximity gate**.
+TIGER would have said *San Jacinto Blvd* while TxDOT said *state highway agency*: coherent,
+confident and wrong. Joined, name and owner come from one segment or from neither.
+
+**`ADMIN` is the ownership field and is not HPMS** — the same trap as PennDOT's, made more
+inviting because `ADMIN` sits beside `F_SYSTEM`, which *is* the FHWA code space. It runs
+`1...16`, and HPMS defines nothing at 5-10 or 13-16. The service publishes `ADMIN: NO DOMAIN`,
+so it was derived by cross-tabbing every code against `HSYS` over all 1,027,891 segments. The
+partition is exact — each code maps to one family of systems, which is what an ownership field
+should do and what `MAINT_RESPON_IND` conspicuously did not:
+
+| `ADMIN` | `HSYS` | Segments | Owner |
+|---|---|---|---|
+| 1 | IH, US, SH, FM, RM, SL, SS, BU, BI, BS, BF, UA, UP, PR, PA, FS, RE, RS, RR | 289,274 | TxDOT |
+| 2 | CR | 302,900 | County |
+| 4 | LS | 427,315 | City or municipal |
+| 5, 6, 16 | TL (+ tolled SH/SL) | 3,237 | Toll authority |
+| 3, 7-15 | FD | 5,165 | Federal — *which* agency is unrecoverable, `HWY` is null on all of them |
+
+Confirmed against three roads whose owner is independently known: I-35 and Loop 343 read `1`;
+San Jacinto Blvd reads `4` and carries `SYSTEM = Off` on the roadways layer.
+
+**`MAP_LBL` is a map *shield* label, not a name.** On-system rows carry `35`, `175`, `10C`;
+toll rows carry `_`; some city-street rows carry a single space. Joining it naively named
+Interstate 35 **"35"** and the Sam Houston Tollway **"\_"**. The join is therefore filtered to
+`SYSTEM='Off'` with `_` as a null string, which leaves interstates and state highways to be
+named by TIGER — which spells them out — while off-system rows keep TxDOT's own name. Toll
+roads that *do* carry a real label still get it: *Fort Bend Parkway*, 41,183 AADT.
+
+**Texas publishes no construction year at all.** `SURF_TREAT_YEAR` is populated on 109,233 of
+1,027,891 rows (10.6%) with values back to 1918, and it is a last-surface-treatment date, not a
+build year — so it is deliberately **not** mapped to `yearBuilt`. Texas ships with a
+`dateCaveat` saying so on the card.
+
 ### 10.3 Construction year: three states of fourteen
 
 | State | Field | Coverage |
@@ -1059,6 +1120,7 @@ route id and then took `.first`. It now ranks by proximity, and its twelve tests
 | Arizona | `YearLastConstruction` | 5,553 / 5,638 (98.5%) |
 | Pennsylvania | `YR_BUILT` | 101,006 — state-owned only |
 | Louisiana | `YearLastConst` | 3,642 rows — control sections only |
+| Texas | *none* | 0 — `SURF_TREAT_YEAR` is resurfacing, on 10.6% of rows |
 
 **Ohio's `LAST_CONST` is a trap.** 5,804 of 58,127 rows non-null (10%), and the non-null values
 are `-2209161600000` — epoch for 1900-01-01, a placeholder. Ohio's official server
@@ -1197,6 +1259,10 @@ logic.
   separately through `Coverage.catalogCapturedOn`.
 - **Layer order encodes precedence.** Louisiana lists layer 91 before the route layer's own copy
   of `Ownership` because the two disagree (§10.2), and `RoadRecord.merge` is first-writer-wins.
+- **A joined field is filtered where its meaning changes by row.** `NameJoinProfile` takes a
+  structured `filterField`/`filterValue`, not a clause fragment, so a value from a remotely
+  fetched catalog is escaped exactly like the key and cannot widen the query. TxDOT needs it
+  because `MAP_LBL` is a street name only on `SYSTEM='Off'` rows (§10.2b).
 - **Tiers run state, then county, then national**, for the same reason: a pin on I-10 sits
   inside Goodyear's city limits, so ADOT must claim it before a county source infers a municipal
   owner (§3).
@@ -1206,8 +1272,8 @@ logic.
 | Level | Meaning | Example |
 |---|---|---|
 | `county` | Somebody did the §1-§2 reconnaissance | Maricopa County |
-| `state` | A state DOT publishes the road | Pennsylvania, Louisiana |
-| `national` | TIGER name, NHS ownership if on it, NBI if a structure is | Harris County, TX |
+| `state` | A state DOT publishes the road | Pennsylvania, Louisiana, Texas |
+| `national` | TIGER name, NHS ownership if on it, NBI if a structure is | Suffolk County, MA |
 
 The level is set by the pipeline factory, never by a source — only the factory can tell *no
 source is mapped here* from *a source is mapped and found nothing*, and that distinction is the

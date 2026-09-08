@@ -125,6 +125,67 @@ public enum CodeTables {
         }
     }
 
+    // MARK: - TxDOT
+
+    /// TxDOT `ADMIN`. **Not HPMS**, and the second instance of the trap `penndotJurisdiction`
+    /// warns about — made more inviting here because `ADMIN` sits in the same table as
+    /// `F_SYSTEM`, which *is* the FHWA code space. Codes run 1...16, and HPMS defines nothing
+    /// at 5-10 or 13-16, so reading them as HPMS would silently mint owners out of nothing.
+    ///
+    /// Derived rather than documented: the service publishes `ADMIN: NO DOMAIN`. Cross-tabbing
+    /// every code against `HSYS`, the highway-system field, over all 1,027,891 statewide
+    /// segments partitions perfectly — each `ADMIN` maps to exactly one family of systems,
+    /// which is what an ownership field should do and what `MAINT_RESPON_IND` conspicuously
+    /// did not:
+    ///
+    /// - `1` (289,274) - every TxDOT-maintained system: IH, US, SH, FM, RM, SL, business and
+    ///   spur routes, park and forest roads.
+    /// - `2` (302,900) - `CR` and nothing else.
+    /// - `4` (427,315) - `LS` and nothing else.
+    /// - `5`, `6`, `16` (3,237) - `TL`, whose `HWY` values read `TL0002`, `TL0003`... plus the
+    ///   tolled state loops, such as Loop 1's express lanes.
+    /// - `3`, `7`-`15` (5,165) - `FD` and nothing else.
+    ///
+    /// Confirmed against three roads whose owner is independently known: I-35 and Loop 343
+    /// read `1`, and San Jacinto Blvd in Austin reads `4` and carries `SYSTEM = Off` on the
+    /// companion roadways layer.
+    public static let txdotAdmin: [Int: String] = [
+        1: "Texas Department of Transportation",
+        2: "County highway agency",
+        3: "Federal agency",
+        4: "City or municipal highway agency",
+        5: "Toll authority",
+        6: "Toll authority",
+        7: "Federal agency",
+        8: "Federal agency",
+        9: "Federal agency",
+        10: "Federal agency",
+        11: "Federal agency",
+        12: "Federal agency",
+        13: "Federal agency",
+        14: "Federal agency",
+        15: "Federal agency",
+        16: "Toll authority",
+    ]
+
+    /// TxDOT names the level of government but not the body, so neither does this.
+    ///
+    /// The nine federal codes are certainly nine *different* federal agencies - the Forest
+    /// Service and an Army installation would not share a code - but `HWY` is null on every
+    /// one of the 5,165 rows, so which is which is unrecoverable from the service. "Federal
+    /// agency" is the whole of what can be shown to be true.
+    public static func owner(txdot code: Int) -> RoadOwner? {
+        guard let name = txdotAdmin[code] else { return nil }
+        switch code {
+        case 1:             return .state(agency: name)
+        case 2:             return .county(agency: name)
+        case 4:             return .municipality(name: name, fullName: name)
+        case 5, 6, 16:      return .tollAuthority(agency: name)
+        case 3, 7...15:     return .federal(agency: name)
+        default:            return nil
+        }
+    }
+
     // MARK: - Lookup
 
     /// Reads a code that may arrive as `4`, `"4"`, `"04"` or `"04-Municipal or City Hwy

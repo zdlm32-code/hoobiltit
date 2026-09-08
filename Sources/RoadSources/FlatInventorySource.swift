@@ -11,6 +11,10 @@ import RoadCore
 /// in central Philadelphia returns fourteen segments including `SIXTEENTH ST` twice — once as
 /// `JURIS = 1` built 1916, once as `JURIS = 5` with no year at all, because the state and the
 /// city each carry a stretch of the same street. Nearest line wins.
+///
+/// Two guards sit on top of that. A nearest line that is still too far away is declined
+/// outright, and a service that keeps its names on a second layer gets them joined back on, so
+/// the name and the owner always describe the same segment.
 public struct FlatInventorySource: RoadSource {
     public let id: String
     public let displayName: String
@@ -44,25 +48,67 @@ public struct FlatInventorySource: RoadSource {
         let (features, url) = try await client.query(layer: layer, envelope: envelope,
                                                      returnGeometry: true)
 
-        guard let nearest = features.features
+        guard let (nearest, metres) = features.features
             .compactMap({ feature -> (ArcGISFeature, Double)? in
                 feature.distance(from: query.coordinate).map { (feature, $0) }
             })
-            .min(by: { $0.1 < $1.1 })?.0
+            .min(by: { $0.1 < $1.1 })
         else {
             fragment.notes = [note(.foundNothing, "\(displayName) publishes no road here.")]
             return fragment
         }
 
+        // An inventory covers one state but not every road in it, and the nearest thing it
+        // holds may simply be the next street over. Declining lets the national tier answer
+        // instead of attributing an arterial's owner to the lane beside it.
+        guard RoadProximity.isOnRoad(metres) else {
+            fragment.notes = [note(.foundNothing, "Nearest inventory segment is \(Int(metres)) m "
+                                   + "away \u{2014} too far to be the road at this point.")]
+            return fragment
+        }
+
+        let provenance = provenance(url: url, fetchedAt: now())
+        // Applied first so that a joined name wins over any the main layer carries, which is
+        // the point of configuring a join at all.
+        if let join = profile.nameJoin {
+            await applyJoin(join, to: nearest, service: service, fragment: &fragment)
+        }
+
         // Centreline geometry is generalised and the pin is wherever the user put it, so this
         // is a spatial match — never `.direct`, which would overstate it.
-        ProfileMapping.apply(nearest, mapping: mapping,
-                             provenance: provenance(url: url, fetchedAt: now()),
+        ProfileMapping.apply(nearest, mapping: mapping, provenance: provenance,
                              confidence: .spatial, to: &fragment)
 
         fragment.notes = [note(fragment.contributesAnything ? .contributed : .foundNothing,
                                summary(fragment))]
         return fragment
+    }
+
+    /// Borrows fields from a second layer keyed on an exact match.
+    ///
+    /// Failure is deliberately silent: the join supplies a name, and losing the name is not a
+    /// reason to throw away the ownership and traffic the main layer already returned. The
+    /// road ends up named by the national tier instead, which is the pre-join behaviour.
+    private func applyJoin(_ join: NameJoinProfile,
+                           to feature: ArcGISFeature,
+                           service: String,
+                           fragment: inout RoadFragment) async {
+        guard let layer = ArcGISLayer(join.service ?? service, layer: join.layer),
+              let key = feature[join.localKeyField].text
+        else { return }
+        var qualifier: (field: String, value: String)?
+        if let field = join.filterField, let value = join.filterValue {
+            qualifier = (field: field, value: value)
+        }
+        guard let (joined, url) = try? await client.query(layer: layer,
+                                                          field: join.foreignKeyField,
+                                                          equals: key, and: qualifier),
+              let match = joined.features.first
+        else { return }
+
+        ProfileMapping.apply(match, mapping: join.fields,
+                             provenance: provenance(url: url, fetchedAt: now()),
+                             confidence: .spatial, to: &fragment)
     }
 
     /// Explains a missing year rather than leaving a hole, because a state that dates only its

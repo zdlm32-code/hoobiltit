@@ -77,6 +77,7 @@ public enum ProfileMapping {
         switch mapping.ownershipTable {
         case .hpmsOwnership:        return CodeTables.owner(hpms: code)
         case .penndotJurisdiction:  return CodeTables.owner(penndot: code)
+        case .txdotAdmin:           return CodeTables.owner(txdot: code)
         case .fhwaFunctionalClass, .none: return nil
         }
     }

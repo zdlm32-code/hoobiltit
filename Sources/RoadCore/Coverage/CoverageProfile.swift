@@ -36,6 +36,7 @@ public enum CodeTableReference: String, Sendable, Codable {
     case hpmsOwnership
     case fhwaFunctionalClass
     case penndotJurisdiction
+    case txdotAdmin
 }
 
 /// How a year is stored. Verified encodings: PennDOT writes a plain `1916`, ADOT a compact
@@ -142,6 +143,51 @@ public struct CentrelineProfile: Sendable, Codable, Hashable {
     }
 }
 
+/// A second layer joined on an exact key, to borrow the fields the main layer lacks.
+///
+/// Written for Texas and deliberately not Texas-specific. TxDOT publishes ownership, class and
+/// traffic on `TxDOT_Roadway_Inventory` — 133 fields, **not one of them a street name** — and
+/// the names on a separate `TxDOT_Roadways` layer, with `GID` common to both.
+///
+/// Without the join the app would name a Texas road from the national tier and own it from the
+/// state tier, which is worse than it sounds: the two would routinely describe *different
+/// roads*. A mid-block pin on San Jacinto Blvd in Austin has Loop 343 only 54.7 m away, inside
+/// the proximity gate, so TIGER would say "San Jacinto Blvd" while TxDOT said "state highway
+/// agency" — a card that is coherent, confident and wrong. Joining makes name and owner come
+/// from one segment or from neither.
+public struct NameJoinProfile: Sendable, Codable, Hashable {
+    /// Defaults to the profile's own service when omitted, which is the usual case.
+    public var service: String?
+    public var layer: Int
+    /// The key on the main layer, read off the segment the pin matched.
+    public var localKeyField: String
+    /// The key on the joined layer. Usually the same name; separate because it need not be.
+    public var foreignKeyField: String
+    /// Restricts the join to rows where a second field holds a given value, for a layer whose
+    /// fields mean different things on different rows.
+    ///
+    /// TxDOT's `MAP_LBL` is the case in point: it is a *map shield label*, so on-system rows
+    /// carry `35`, `175`, `10C` — never a street name — while off-system rows carry
+    /// `SAN JACINTO BLVD`. Joining without this named Interstate 35 "35".
+    public var filterField: String?
+    public var filterValue: String?
+    /// What the joined layer contributes. Applied *before* the main layer, so a field present
+    /// on both comes from here.
+    public var fields: FieldMapping
+
+    public init(service: String? = nil, layer: Int, localKeyField: String,
+                foreignKeyField: String, filterField: String? = nil,
+                filterValue: String? = nil, fields: FieldMapping) {
+        self.service = service
+        self.layer = layer
+        self.localKeyField = localKeyField
+        self.foreignKeyField = foreignKeyField
+        self.filterField = filterField
+        self.filterValue = filterValue
+        self.fields = fields
+    }
+}
+
 /// A jurisdiction's road data, described rather than coded.
 public struct CoverageProfile: Sendable, Codable, Hashable {
     /// Stable source id; also the cache key, so changing it discards that source's cache.
@@ -161,6 +207,9 @@ public struct CoverageProfile: Sendable, Codable, Hashable {
     /// `flatInventory`: the one layer to read.
     public var layer: Int?
     public var fields: FieldMapping?
+    /// `flatInventory`: an optional second layer joined on an exact key, for a service that
+    /// splits attributes from names.
+    public var nameJoin: NameJoinProfile?
 
     /// `lrsEvents`: the layer that identifies the road, then the tables to join to it.
     public var routeLayer: Int?
