@@ -1430,3 +1430,64 @@ shipped cities do.
 A city contributes at `CoverageLevel.county`, deliberately without a level of its own:
 `CoverageLevel`'s `Comparable` reads a hardcoded array through a force-unwrapped `firstIndex`, so
 a case missing from that array is a crash rather than a compile error.
+
+---
+
+## 15. The Rio Grande Valley — six agencies, and one that had to be refused
+
+The RGV is four counties and about 1.4 million people, and it is the first place the app went
+looking where **no single source covers the region**. Every agency was probed separately.
+
+| Source | Features | What it gives | Dates |
+|---|---|---|---|
+| Edinburg capital projects | 418 polygons | project, description, **contractor**, actual cost | **139 completions** |
+| Pharr street inventory | 3,611 | name, owner, class, pavement, 1-10 rating, cross streets | 501 repavings, 2015-2018 |
+| Cameron County roads | 3,119 | name, surface, lanes, subdivision | **none** |
+| Weslaco centreline | 4,175 | name, class, jurisdiction | **none** |
+| Brownsville centreline | 8,581 | name only | **none** |
+| McAllen | — | nothing published | — |
+
+### Edinburg is the best city project register found anywhere
+
+```
+https://services7.arcgis.com/z3I4HxFCWafiHSiG/arcgis/rest/services/COE_CAPITAL_IMPROVEMENT_PROJECTS/FeatureServer/0
+```
+
+`CONTRACTOR`, `CONSTRUCTION_ACTUAL`, `ACTUAL_COMPLETION` and a written `DESCRIPTION`, on 139
+completed projects — *RBM Contractors, $3,324,533, 2025*. A city of 101,000 publishing what
+thirteen state DOTs do not.
+
+Two things it forced. **Polygons need containment, not distance** (`MatchMode.containsPoint`): a
+project area is half a mile across, so the distance from a pin inside it to the boundary
+routinely exceeds the 60 m on-road gate and nearest-line would reject the very project the pin
+is standing in. And **all** containing projects are reported, not the first: a city rebuilds the
+same street repeatedly and the areas overlap, so taking whichever the service returned first
+picks a year at random.
+
+It also forced `outFields` onto the profile. These rows carry about 150 fields including thirty
+paragraphs of status history — **200 KB for seven features**, on what may be a phone in a car.
+Naming the seven fields actually read brings that to 20 KB.
+
+### Bare ownership levels
+
+Pharr writes `OWNER` as `CITY` (2,461), `PRIVATE` (697), `STATE` (281), `COUNTY` (172) — a level,
+true of every city in Texas and naming none of them. `FieldMapping.ownerNames` rewrites a value
+before it is classified. Weslaco needs the same for the opposite reason: `JURISDICTION_LEFT` is
+`WESLACO` on 2,577 segments and **`UNINCORPORATED` on 1,450**, and mapping the latter to an
+empty string makes the source decline so TxDOT's own ownership answers instead. The city also
+publishes `UNINCORPOARTED`, misspelled, on one segment; both spellings are mapped.
+
+### Harlingen was probed and refused
+
+`HARLINGEN_CAPITAL_IMPROVEMENT_PROJECTS` is **template data**, and would have been easy to ship.
+Its layer is id `1`, not `0`. Its rows are named `PROJECT 1 - BUILDING & FACILITIES` and
+`PROJECT 2 - DRAINAGE & STORMWATER`, every one shares the end date `2025-06-02`, and their
+centroids are at **-98.147, 26.243 — in Edinburg, sixty kilometres from Harlingen**. Wired up it
+would have put invented projects on real Edinburg streets.
+
+### Undated work is not work
+
+Pharr records a `MAINTENANCE_REPAIRS` treatment on segments with no `Repave_Date`, and the first
+build of this profile duly showed *"Crack Sealing, undated"*. `ProfileMapping.work` now requires
+a date: the whole purpose of a work entry is to date the road, and an undated treatment tells a
+reader nothing they could not see by standing on it.

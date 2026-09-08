@@ -263,7 +263,7 @@ struct TxDOTTests {
         // the whole of what this pin gets.
         #expect(fragment.yearLastConstruction == nil)
         #expect(fragment.yearLastImprovement == nil)
-        #expect(fragment.notes.first?.detail?.contains("no dates for city streets") == true)
+        #expect(fragment.notes.first?.detail?.contains("no statewide record") == true)
     }
 
     @Test("A failed join costs the name, not the ownership")

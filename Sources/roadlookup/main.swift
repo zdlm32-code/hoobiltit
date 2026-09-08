@@ -79,7 +79,8 @@ if let w = record.works {
         let year = entry.letDate.map { String(CalendarDate.year($0)) } ?? "undated"
         let cost = entry.cost.map { " \($0.formatted(.currency(code: "USD").precision(.fractionLength(0))))" } ?? ""
         let planned = entry.isPlanned ? " (planned)" : ""
-        print("    \(year)  \(entry.title)\(cost)\(planned)  [\(entry.kind.rawValue)]")
+        let by = entry.contractor.map { " built by \($0)" } ?? ""
+        print("    \(year)  \(entry.title)\(cost)\(planned)  [\(entry.kind.rawValue)]\(by)")
     }
 }
 if let f = record.funding {

@@ -45,26 +45,56 @@ public struct FlatInventorySource: RoadSource {
         else { return fragment }
 
         let envelope = Geo.envelope(around: query.coordinate, radiusMeters: query.searchRadiusMeters)
-        let (features, url) = try await client.query(layer: layer, envelope: envelope,
-                                                     returnGeometry: true)
+        let (features, url) = try await client.query(
+            layer: layer, envelope: envelope,
+            outFields: profile.outFields.map { $0.joined(separator: ",") } ?? "*",
+            returnGeometry: true)
 
-        guard let (nearest, metres) = features.features
-            .compactMap({ feature -> (ArcGISFeature, Double)? in
-                feature.distance(from: query.coordinate).map { (feature, $0) }
-            })
-            .min(by: { $0.1 < $1.1 })
-        else {
-            fragment.notes = [note(.foundNothing, "\(displayName) publishes no road here.")]
-            return fragment
-        }
-
-        // An inventory covers one state but not every road in it, and the nearest thing it
-        // holds may simply be the next street over. Declining lets the national tier answer
-        // instead of attributing an arterial's owner to the lane beside it.
-        guard RoadProximity.isOnRoad(metres) else {
-            fragment.notes = [note(.foundNothing, "Nearest inventory segment is \(Int(metres)) m "
-                                   + "away \u{2014} too far to be the road at this point.")]
-            return fragment
+        let nearest: ArcGISFeature
+        switch profile.matchMode {
+        case .containsPoint:
+            // A project area is a polygon, and the pin is either in it or it is not. Measuring
+            // to the boundary would reject a project the pin is standing in the middle of.
+            let containing = features.features.filter { feature in
+                (feature.geometry?.coordinatePaths ?? []).contains {
+                    Geo.ring($0, contains: query.coordinate)
+                }
+            }
+            guard let first = containing.first else {
+                fragment.notes = [note(.foundNothing,
+                                       "No \(displayName) project area covers this point.")]
+                return fragment
+            }
+            // Every project covering the point, not one of them. A city rebuilds the same
+            // street more than once, and the areas overlap; taking whichever the service
+            // happened to return first would pick a year at random.
+            let dated = containing.compactMap { ProfileMapping.work($0, mapping, now: now()) }
+                .sorted { ($0.letDate ?? .distantPast) > ($1.letDate ?? .distantPast) }
+            if !dated.isEmpty {
+                fragment.works = Attributed(dated, provenance: provenance(url: url, fetchedAt: now()),
+                                            confidence: .spatial)
+            }
+            nearest = first
+        case .nearestLine:
+            guard let (line, metres) = features.features
+                .compactMap({ feature -> (ArcGISFeature, Double)? in
+                    feature.distance(from: query.coordinate).map { (feature, $0) }
+                })
+                .min(by: { $0.1 < $1.1 })
+            else {
+                fragment.notes = [note(.foundNothing, "\(displayName) publishes no road here.")]
+                return fragment
+            }
+            // An inventory covers one jurisdiction but not every road in it, and the nearest
+            // thing it holds may simply be the next street over. Declining lets a later source
+            // answer instead of attributing an arterial's owner to the lane beside it.
+            guard RoadProximity.isOnRoad(metres) else {
+                fragment.notes = [note(.foundNothing, "Nearest inventory segment is "
+                                       + "\(Int(metres)) m away \u{2014} too far to be the road "
+                                       + "at this point.")]
+                return fragment
+            }
+            nearest = line
         }
 
         let provenance = provenance(url: url, fetchedAt: now())
@@ -77,7 +107,7 @@ public struct FlatInventorySource: RoadSource {
         // Centreline geometry is generalised and the pin is wherever the user put it, so this
         // is a spatial match — never `.direct`, which would overstate it.
         ProfileMapping.apply(nearest, mapping: mapping, provenance: provenance,
-                             confidence: .spatial, to: &fragment)
+                             confidence: .spatial, now: now(), to: &fragment)
 
         fragment.notes = [note(fragment.contributesAnything ? .contributed : .foundNothing,
                                summary(fragment))]

@@ -31,6 +31,18 @@ public enum CoverageAdapter: String, Sendable, Codable {
     case bespoke
 }
 
+/// How a feature is chosen from what an envelope returns.
+///
+/// Polyline layers want the nearest line: a centreline is the road, and distance to it is
+/// meaningful. Polygon layers want containment, and the difference is not cosmetic. A city
+/// capital-project area can be half a mile across, so the distance from a pin *inside* it to
+/// its boundary routinely exceeds the on-road gate — nearest-line would reject the very
+/// project the pin is standing in.
+public enum MatchMode: String, Sendable, Codable {
+    case nearestLine
+    case containsPoint
+}
+
 /// Which shipped table decodes a coded field. `nil` means the value is already prose.
 public enum CodeTableReference: String, Sendable, Codable {
     case hpmsOwnership
@@ -66,6 +78,11 @@ public struct FieldMapping: Sendable, Codable, Hashable {
     public var routeDesignation: [String]?
     public var ownership: String?
     public var ownershipTable: CodeTableReference?
+    /// Rewrites an ownership value before it is classified, for a layer that publishes a bare
+    /// level rather than a body: Pharr writes `CITY`, which is true of every city in Texas.
+    /// Mapping to an empty string makes the source decline, which is how a city layer says a
+    /// street is outside its own jurisdiction.
+    public var ownerNames: [String: String]?
     public var yearBuilt: String?
     public var yearImproved: String?
     public var yearEncoding: YearEncoding?
@@ -82,6 +99,12 @@ public struct FieldMapping: Sendable, Codable, Hashable {
     public var workTypeTable: CodeTableReference?
     /// The agency's own description of the extent, e.g. Dallas's "18400-18500 TIMBER OAKS DR".
     public var workLocation: String?
+    /// What the work was, when the layer is a project register rather than a pavement survey
+    /// and every row is by definition construction.
+    public var workKindDefault: RoadWorkKind?
+    public var workDetail: String?
+    public var workCost: String?
+    public var workContractor: String?
     /// Pavement, as a city layer publishes it. Assembled into one `SurfaceDescription`, which
     /// already carries a type, a width, a plain-English rating and a 0-100 index because
     /// Maricopa publishes all four.
@@ -233,6 +256,12 @@ public struct CoverageProfile: Sendable, Codable, Hashable {
     /// `flatInventory`: the one layer to read.
     public var layer: Int?
     public var fields: FieldMapping?
+    /// How the pin picks a feature. Defaults to nearest line; see `MatchMode`.
+    public var matching: MatchMode?
+    /// Fields to request, when asking for everything is wasteful. Edinburg's capital-project
+    /// rows carry about 150 fields including thirty paragraphs of status history, which is
+    /// 200 KB for seven features on what may be a phone in a car. Omit to request `*`.
+    public var outFields: [String]?
     /// `flatInventory`: an optional second layer joined on an exact key, for a service that
     /// splits attributes from names.
     public var nameJoin: NameJoinProfile?
@@ -264,6 +293,7 @@ public struct CoverageProfile: Sendable, Codable, Hashable {
 
     /// Defaults applied on read rather than at decode. See `minSchema`.
     public var requiredSchema: Int { minSchema ?? 1 }
+    public var matchMode: MatchMode { matching ?? .nearestLine }
     public var drawsParcels: Bool { hasParcels ?? false }
 
     public init(id: String, displayName: String, adapter: CoverageAdapter) {

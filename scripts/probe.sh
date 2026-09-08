@@ -21,6 +21,7 @@ TXRDS="https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_R
 TXDCIS="https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_DCIS_All_Projects/FeatureServer/0"
 DALPAV="https://services2.arcgis.com/rwnOSbfKSwyTBcwN/arcgis/rest/services/PavementCondition/FeatureServer/0"
 SAPAV="https://services.arcgis.com/g1fRTDLeMgspWrYp/arcgis/rest/services/Pavements/FeatureServer/0"
+EDICIP="https://services7.arcgis.com/z3I4HxFCWafiHSiG/arcgis/rest/services/COE_CAPITAL_IMPROVEMENT_PROJECTS/FeatureServer/0"
 
 # Named test pins from docs/ENDPOINTS.md §8 (bash 3.2 has no associative arrays)
 PIN_NAMES="lonemountain goodyear i10 suncity williams mc85 mcdowell"
@@ -307,6 +308,42 @@ print(";".join(f"{c}={n}" for c,n in sorted(new,key=lambda t:-t[1])) if new else
   echo
 }
 
+# The Rio Grande Valley profiles are six small agencies rather than one regional source, so they
+# fail independently and quietly. This checks each answers at all, and that Edinburg -- the only
+# one publishing a contractor and a cost anywhere in the app outside TxDOT -- still does.
+check_rgv() {
+  echo "=== Rio Grande Valley sources (ENDPOINTS.md 15)"
+  local ok=1
+  rgv_count() { count "$1&where=1%3D1&returnCountOnly=true&f=json" 2>/dev/null; }
+  for pair in \
+    "Cameron County|https://services5.arcgis.com/p65BQlkv8na0Y5l9/arcgis/rest/services/COUNTY_ROAD_INVENTORY_2026/FeatureServer/0/query?" \
+    "Pharr|https://services.arcgis.com/Uj8MycSVzMEzm7ey/arcgis/rest/services/Street_Repaving/FeatureServer/2/query?" \
+    "Weslaco|https://services7.arcgis.com/9yzEIJbAp0HzkDjg/arcgis/rest/services/COW_STREETS/FeatureServer/0/query?" \
+    "Edinburg|$EDICIP/query?"; do
+    local nm="${pair%%|*}" u="${pair##*|}"
+    local n; n=$(curl -s -m 40 "${u}where=1%3D1&returnCountOnly=true&f=json" \
+      | python3 -c 'import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print("err"); raise SystemExit
+print(d.get("count","err") if "error" not in d else "err")')
+    printf "  %-16s %s\n" "$nm" "${n:-?}"
+    [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt 0 ] || ok=0
+  done
+  local named
+  named=$(curl -s -m 40 "$EDICIP/query?where=CONTRACTOR%20IS%20NOT%20NULL%20AND%20ACTUAL_COMPLETION%20IS%20NOT%20NULL&returnCountOnly=true&f=json" \
+    | python3 -c 'import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print("err"); raise SystemExit
+print(d.get("count","err") if "error" not in d else "err")')
+  echo "  Edinburg projects naming a contractor -> ${named:-?}"
+  if [ "$ok" = 1 ] && [[ "$named" =~ ^[0-9]+$ ]] && [ "$named" -gt 0 ]; then
+    echo "  OK: every shipped RGV source answers, and Edinburg still names contractors."
+  else
+    echo "  CHANGED: an RGV source stopped answering -- re-read ENDPOINTS.md 15."
+  fi
+  echo
+}
+
 # Feature count for a query URL, or the string "err" if the request did not come back.
 count() {
   curl -s -m 25 --retry 3 --retry-delay 1 --retry-all-errors "$1" | python3 -c '
@@ -334,4 +371,5 @@ else
   check_txdot_project_classes
   check_sanantonio_sentinels
   check_dallas_rehab_types
+  check_rgv
 fi

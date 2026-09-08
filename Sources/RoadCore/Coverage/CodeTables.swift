@@ -288,10 +288,14 @@ public enum CodeTables {
             || upper.hasPrefix("CAMP ") || upper.hasSuffix(" ARB") {
             return .federal(agency: raw)
         }
+        // A layer that shouts its values reads badly as prose: "maintained by MERCEDES".
+        let cased = raw == upper && raw.count > 3
+            ? raw.capitalized(with: Locale(identifier: "en_US"))
+            : raw
         // Everything else is a named local body. `municipality` is approximate for a port or
         // development authority, but the case only decides the wording around the name, and
         // the name itself — which is what the card shows — is exactly right.
-        return .municipality(name: raw, fullName: raw)
+        return .municipality(name: cased, fullName: cased)
     }
 
     // MARK: - Dallas maintenance responsibility

@@ -78,7 +78,11 @@ public enum ProfileMapping {
             return CodeTables.owner(dallas: feature[field].text)
         }
         if mapping.ownershipTable == .namedAgency {
-            guard let text = feature[field].text, !mapping.isNull(text) else { return nil }
+            guard var text = feature[field].text, !mapping.isNull(text) else { return nil }
+            if let renamed = mapping.ownerNames?[text] {
+                guard !renamed.isEmpty else { return nil }
+                text = renamed
+            }
             return CodeTables.owner(named: text)
         }
         guard let code = CodeTables.code(feature[field]) else { return nil }
@@ -123,17 +127,39 @@ public enum ProfileMapping {
     ///
     /// Returns nil when the layer says no work was done, which is a real answer and not a gap:
     /// Dallas writes `rehab_type = "None"` on 11,007 of its 38,564 segments.
-    public static func work(_ feature: ArcGISFeature, _ mapping: FieldMapping) -> RoadWork? {
-        guard mapping.workTypeTable == .dallasRehabType,
-              let typeField = mapping.workType,
-              let kind = CodeTables.workKind(dallas: feature[typeField].text),
-              let title = feature[typeField].text
+    public static func work(_ feature: ArcGISFeature, _ mapping: FieldMapping,
+                            now: Date = Date()) -> RoadWork? {
+        guard let typeField = mapping.workType,
+              let title = feature[typeField].text, !mapping.isNull(title)
         else { return nil }
-        return RoadWork(title: title,
+        // A pavement survey codes what was done and the code decides; a capital-project
+        // register does not, because every row in it is a project. `workKindDefault` is how a
+        // profile says which of the two it is.
+        let kind: RoadWorkKind
+        switch mapping.workTypeTable {
+        case .dallasRehabType:
+            guard let decoded = CodeTables.workKind(dallas: title) else { return nil }
+            kind = decoded
+        default:
+            guard let declared = mapping.workKindDefault else { return nil }
+            kind = declared
+        }
+        // Undated work is not worth a row. The entire point of a work entry is to date the
+        // road, and "Crack Sealing, undated" tells a reader nothing they did not already know
+        // from standing on it.
+        guard let when = date(feature, mapping.workYear, mapping) else { return nil }
+        return RoadWork(projectNumber: nil,
+                        title: title,
+                        detail: text(feature, mapping.workDetail.map { [$0] }, mapping),
                         location: text(feature, mapping.workLocation.map { [$0] }, mapping)
                             ?? crossStreets(feature, mapping),
-                        letDate: date(feature, mapping.workYear, mapping),
-                        kind: kind)
+                        letDate: when,
+                        cost: number(feature, mapping.workCost, mapping).flatMap { $0 > 0 ? $0 : nil },
+                        contractor: text(feature, mapping.workContractor.map { [$0] }, mapping),
+                        kind: kind,
+                        // A city's project register carries work that has not happened yet,
+                        // exactly as the state's does, and it must be labelled the same way.
+                        isPlanned: when > now)
     }
 
     /// Nil when both ends name the same street, which a cul-de-sac or a loop does: Dallas
@@ -156,6 +182,7 @@ public enum ProfileMapping {
                              mapping: FieldMapping,
                              provenance: Provenance,
                              confidence: MatchConfidence,
+                             now: Date = Date(),
                              to fragment: inout RoadFragment) {
         if fragment.segmentName == nil, let name = text(feature, mapping.name, mapping) {
             fragment.segmentName = Attributed(name, provenance: provenance, confidence: confidence)
@@ -181,7 +208,7 @@ public enum ProfileMapping {
         if fragment.surface == nil, let surface = surface(feature, mapping) {
             fragment.surface = Attributed(surface, provenance: provenance, confidence: confidence)
         }
-        if fragment.works == nil, let work = work(feature, mapping) {
+        if fragment.works == nil, let work = work(feature, mapping, now: now) {
             fragment.works = Attributed([work], provenance: provenance, confidence: confidence)
         }
         if fragment.structureNumber == nil,

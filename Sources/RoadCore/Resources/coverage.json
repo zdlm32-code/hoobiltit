@@ -55,7 +55,7 @@
       "sourceIDs": [
         "tx.dcis"
       ],
-      "dateCaveat": "On the state system TxDOT publishes its construction register back to 1970. Off it, only Dallas and San Antonio publish street-level records \u2014 Houston, Austin and the rest publish no dates for city streets, and no Texas county publishes any.",
+      "dateCaveat": "On the state system TxDOT publishes its construction register back to 1970. Off it there is no statewide record at all, and what a city street shows depends entirely on whether that city publishes one.",
       "_comment": "The inventory is one layer of 133 fields over 1027891 statewide segments and not one field is a street name, so the names are joined from TxDOT_Roadways on GID, which is 1:1 and coerces from the integer to a quoted where clause. ADMIN is the ownership field and is NOT HPMS: it runs 1-16 where HPMS defines nothing at 5-10 or 13-16. See CodeTables.txdotAdmin for the HSYS cross-tab it was derived from. MAP_LBL is a map *shield* label, not a name: on-system rows carry '35', '175', '10C' and toll rows carry '_', so the join is filtered to SYSTEM='Off' and '_' is a null string. Interstates and state highways are therefore named by TIGER, which spells them out. SURF_TREAT_YEAR is populated on only 109233 of 1027891 rows and is a last-surface-treatment date rather than a construction year, so it is deliberately not mapped to yearBuilt; values run back to 1918."
     },
     "42": {
@@ -186,6 +186,28 @@
         "classificationField": "Classification"
       },
       "hasParcels": true
+    },
+    "48061": {
+      "id": "tx.cameron.roads",
+      "displayName": "Cameron County road inventory",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services5.arcgis.com/p65BQlkv8na0Y5l9/arcgis/rest/services/COUNTY_ROAD_INVENTORY_2026/FeatureServer",
+      "layer": 0,
+      "fields": {
+        "name": [
+          "STREET"
+        ],
+        "surface": "SURFACE",
+        "nullStrings": [
+          "",
+          "NIA",
+          "N/A",
+          "UNKNOWN"
+        ]
+      },
+      "_comment": "3119 segments of unincorporated Cameron County road, the county's own inventory. Carries STREET, SURFACE, No_Lanes, SUBDIVISIO and RIGHT_OF_W and NO dates of any kind. Presence in this layer is itself the ownership answer - it is the county's maintained-road list, the same inference MCDOT's layer 2 supports - but it is left unmapped because the layer publishes no ownership field to read and inferring from silence is a judgement the catalog cannot express.",
+      "dateCaveat": "Cameron County publishes its road inventory without any construction or resurfacing dates."
     }
   },
   "places": {
@@ -222,7 +244,7 @@
           "Unknown"
         ]
       },
-      "_comment": "38564 supersegments. rehab_year is populated on 27588 across 95 distinct years with NO dominant value \u2014 the largest is 2024 at 8.4% \u2014 so unlike San Antonio's InstallDate it needs no sentinel filtering. rehab_type is a 21-value vocabulary decoded by CodeTables.workKind(dallas:); 'None' on 11007 rows means no recorded work and yields no entry. maint_resp is 'City' on 38471 of 38564, so namedAgency reads it as a municipality; it is the level, not the body, which is the same amount PennDOT's JURIS=5 claims. The City of Dallas spans five counties, which is why this is keyed on place GEOID and not county FIPS.",
+      "_comment": "38564 supersegments. rehab_year is populated on 27588 across 95 distinct years with NO dominant value — the largest is 2024 at 8.4% — so unlike San Antonio's InstallDate it needs no sentinel filtering. rehab_type is a 21-value vocabulary decoded by CodeTables.workKind(dallas:); 'None' on 11007 rows means no recorded work and yields no entry. maint_resp is 'City' on 38471 of 38564, so namedAgency reads it as a municipality; it is the level, not the body, which is the same amount PennDOT's JURIS=5 claims. The City of Dallas spans five counties, which is why this is keyed on place GEOID and not county FIPS.",
       "dateCaveat": "Dallas records when a street was last rebuilt or resurfaced, not when it was first built."
     },
     "4865000": {
@@ -255,8 +277,143 @@
           "Unknown"
         ]
       },
-      "_comment": "98986 segments. InstallDate is populated on ALL of them and 96% of it is placeholder: 2000-01-01 on 49782 rows (50.3%) and 1980-01-01 on 45272 (45.7%), leaving 3932 real dates. Both epoch values are in nullNumbers; without them the app would invent a construction year for every street in the city. What is genuinely populated is Owner, 43 values naming the body \u2014 San Antonio, Bexar County, TxDOT, Private on 11017 segments, Ft Sam Houston, Lackland AFB \u2014 decoded by CodeTables.owner(named:). Surface_Type is 'TBD' on 42576 rows, hence nullStrings.",
+      "_comment": "98986 segments. InstallDate is populated on ALL of them and 96% of it is placeholder: 2000-01-01 on 49782 rows (50.3%) and 1980-01-01 on 45272 (45.7%), leaving 3932 real dates. Both epoch values are in nullNumbers; without them the app would invent a construction year for every street in the city. What is genuinely populated is Owner, 43 values naming the body — San Antonio, Bexar County, TxDOT, Private on 11017 segments, Ft Sam Houston, Lackland AFB — decoded by CodeTables.owner(named:). Surface_Type is 'TBD' on 42576 rows, hence nullStrings.",
       "dateCaveat": "San Antonio dates only about 3,900 of its 99,000 street segments; the rest carry a placeholder the app discards rather than shows."
+    },
+    "4857200": {
+      "id": "tx.pharr.streets",
+      "displayName": "City of Pharr street inventory",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services.arcgis.com/Uj8MycSVzMEzm7ey/arcgis/rest/services/Street_Repaving/FeatureServer",
+      "layer": 2,
+      "fields": {
+        "name": [
+          "FULL_NAME"
+        ],
+        "ownership": "OWNER",
+        "ownershipTable": "namedAgency",
+        "functionalClass": "ST_CLASS",
+        "surface": "PAVEMENT_TYPE",
+        "conditionIndex": "PAVEMENT_RATING",
+        "widthFeet": "PAVEMENT_WIDTH_FT",
+        "crossStreetFrom": "F_INTERSECTION",
+        "crossStreetTo": "T_INTERSECTION",
+        "workYear": "Repave_Date",
+        "workType": "MAINTENANCE_REPAIRS",
+        "workKindDefault": "maintained",
+        "yearEncoding": "yearNumber",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          "NIA",
+          "N/A",
+          "No Maintenance",
+          "None",
+          "UNKNOWN"
+        ],
+        "ownerNames": {
+          "CITY": "City of Pharr",
+          "COUNTY": "Hidalgo County",
+          "STATE": "Texas Department of Transportation",
+          "PRIVATE": "Private"
+        }
+      },
+      "_comment": "3611 segments. OWNER is populated on all of them and names CITY, COUNTY and so on, read by CodeTables.owner(named:). Repave_Date is a plain year on 501 segments and its values are exactly 2015-2018, so it is a repaving programme record rather than a construction history; MAINTENANCE_REPAIRS names the treatment and workKindDefault files it as upkeep, never as what built the street. PAVEMENT_RATING is a 1-10 score, not the 0-100 PCI the other cities publish.",
+      "dateCaveat": "Pharr records its 2015-2018 repaving programme, not when its streets were first built."
+    },
+    "4822660": {
+      "id": "tx.edinburg.cip",
+      "displayName": "City of Edinburg capital projects",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services7.arcgis.com/z3I4HxFCWafiHSiG/arcgis/rest/services/COE_CAPITAL_IMPROVEMENT_PROJECTS/FeatureServer",
+      "layer": 0,
+      "matching": "containsPoint",
+      "fields": {
+        "workType": "NAME",
+        "workDetail": "DESCRIPTION",
+        "workYear": "ACTUAL_COMPLETION",
+        "workCost": "CONSTRUCTION_ACTUAL",
+        "workContractor": "CONTRACTOR",
+        "workKindDefault": "built",
+        "yearEncoding": "epochMilliseconds",
+        "nullNumbers": [
+          0
+        ],
+        "nullStrings": [
+          "",
+          "TBD",
+          "N/A",
+          "NONE",
+          "To Be Determined"
+        ]
+      },
+      "_comment": "418 project polygons, matched by containment rather than nearest line because a project area is half a mile across and the distance from a pin inside it to its boundary exceeds the on-road gate. Uniquely rich for a city: CONTRACTOR, CONSTRUCTION_ACTUAL and ACTUAL_COMPLETION on 139 completed projects, plus a written DESCRIPTION. Projects still in design carry a future ACTUAL_COMPLETION, which RoadWork.isPlanned separates.",
+      "dateCaveat": "Edinburg publishes its capital projects, so a street shows only work the city has funded as a project.",
+      "outFields": [
+        "NAME",
+        "DESCRIPTION",
+        "ACTUAL_COMPLETION",
+        "CONSTRUCTION_ACTUAL",
+        "CONTRACTOR",
+        "PHASE",
+        "TYPES"
+      ]
+    },
+    "4877272": {
+      "id": "tx.weslaco.streets",
+      "displayName": "City of Weslaco street centreline",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services7.arcgis.com/9yzEIJbAp0HzkDjg/arcgis/rest/services/COW_STREETS/FeatureServer",
+      "layer": 0,
+      "fields": {
+        "name": [
+          "FULL_NAME"
+        ],
+        "ownership": "JURISDICTION_LEFT",
+        "ownershipTable": "namedAgency",
+        "functionalClass": "ROADCLASS",
+        "nullStrings": [
+          "",
+          "NIA",
+          "N/A",
+          "UNKNOWN",
+          "TBD"
+        ],
+        "ownerNames": {
+          "WESLACO": "City of Weslaco",
+          "UNINCORPORATED": "",
+          "UNINCORPOARTED": ""
+        }
+      },
+      "_comment": "4175 segments. Names the street and the jurisdiction responsible for it and publishes NO dates. Listed because naming the responsible body is a real answer where the alternative is TxDOT's blanket municipal code.",
+      "dateCaveat": "Weslaco publishes its street centreline without construction or resurfacing dates."
+    },
+    "4810768": {
+      "id": "tx.brownsville.streets",
+      "displayName": "City of Brownsville road centreline",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services2.arcgis.com/6oaLMZEZlktbQpyi/arcgis/rest/services/Brownsville_Road_Centerlines_view/FeatureServer",
+      "layer": 0,
+      "fields": {
+        "name": [
+          "NAME",
+          "UNIQUE_NM"
+        ],
+        "nullStrings": [
+          "",
+          "NIA",
+          "N/A",
+          "UNKNOWN"
+        ]
+      },
+      "_comment": "8581 centrelines for the largest Rio Grande Valley city, carrying a name and a STREET_USE and no ownership or dates. The thinnest profile shipped, and it earns its place only because Brownsville's own naming beats TIGER's inside the city. NAME is the full form ('E ELIZABETH ST') and UNIQUE_NM is the bare stem ('ELIZABETH'), so the order matters. The layer answers spatial queries but returns nothing for an attribute-only one, which is harmless here because every query this app makes is an envelope.",
+      "dateCaveat": "Brownsville publishes a street centreline only: no ownership and no dates."
     }
   }
 }
