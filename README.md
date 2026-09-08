@@ -20,6 +20,8 @@ next state shaped like it will not.
 
 ## Start here
 
+**[`docs/COVERAGE.md`](docs/COVERAGE.md)** is the checklist: every jurisdiction probed, shipped or rejected, with the reason.
+
 **[`docs/ENDPOINTS.md`](docs/ENDPOINTS.md)** is the load-bearing document. It records every
 public endpoint probed, which are genuinely queryable, the query form that actually works, and
 where the data model has to bend. Read §4 and §5 before writing a source; they are the

@@ -416,6 +416,57 @@
       },
       "_comment": "409586 statewide segments, and the SECOND agency in this survey to publish coded-value domains - thirty of them, including JURISDICTN and SURFACE_TP. Its jurisdiction list is the most complete found anywhere: it separates the Department of Conservation and Recreation, Massport, four branches of the military, the Army Corps and the BIA. Two values carry real weight: H marks a road private, and 0 marks one 'unaccepted by city or town' on 120329 segments - a fifth of the state - which is the same distinction Maricopa draws with countyCourtesy and maps to notPubliclyMaintained. F_CLASS here is the FHWA scheme but skips 4, so the shipped table covers it. No construction or resurfacing date is published. Note the field is STREET_NAME here; Boston's clipped copy of the same schema truncates it to STREET_NAM, and naming a field the layer does not have makes the service reject the whole query with a 400 rather than ignoring it.",
       "dateCaveat": "Massachusetts publishes who is responsible for each road, down to which are private or unaccepted, but no construction dates."
+    },
+    "51": {
+      "id": "va.vdot",
+      "displayName": "VDOT route master",
+      "adapter": "flatInventory",
+      "minSchema": 1,
+      "service": "https://services.arcgis.com/p5v98VHDX9Atv3l7/arcgis/rest/services/LRS_Route_Master/FeatureServer",
+      "layer": 0,
+      "outFields": [
+        "RTE_COMMON_NM",
+        "RTE_STREET_PREFIX",
+        "RTE_STREET_NM",
+        "RTE_STREET_TYPE",
+        "RTE_TYPE_NM",
+        "RTE_JURIS_PROPER_NM"
+      ],
+      "fields": {
+        "nameParts": [
+          "RTE_STREET_PREFIX",
+          "RTE_STREET_NM",
+          "RTE_STREET_TYPE"
+        ],
+        "ownershipRules": [
+          {
+            "field": "RTE_TYPE_NM",
+            "table": "namedAgency",
+            "names": {
+              "Secondary Route": "Virginia Department of Transportation",
+              "State Route": "Virginia Department of Transportation",
+              "U.S. Route": "Virginia Department of Transportation",
+              "Interstate": "Virginia Department of Transportation",
+              "Frontage Road": "Virginia Department of Transportation",
+              "Urban Road": "Virginia Department of Transportation",
+              "Street Route": "",
+              "Other": ""
+            }
+          },
+          {
+            "field": "RTE_JURIS_PROPER_NM",
+            "table": "namedAgency"
+          }
+        ],
+        "nullStrings": [
+          "",
+          " ",
+          "UNKNOWN",
+          "N/A"
+        ]
+      },
+      "_comment": "196896 routes. Virginia is arranged unlike any other state: VDOT maintains the secondary system in every locality except Arlington and Henrico, so RTE_JURIS_PROPER_NM names the LOCALITY a route sits in, not its owner, and reading it as ownership would hand 64076 VDOT-maintained secondary roads to the counties they run through. RTE_TYPE_NM is the ownership signal, and the arrangement proves itself: Arlington has 676 Street Routes to 7 Secondary, Henrico 6420 to 4, while VDOT-maintained Fairfax has 9422 Secondary to 5841 Street. So rule one claims every VDOT route type and declines Street Route; rule two then names the locality for what is left, and owner(named:) reads 'Fairfax County' as a county and 'City of Virginia Beach' as a municipality. No dates are published. RTE_COMMON_NM is a label rather than a name - 'Patrick Henry DR (NP - Arlington County)' on a street, 'SC-682E (Accomack County)' on a secondary route - so it is not read at all. The street parts are joined for named streets, and a secondary route with no street name falls through to TIGER, which gives a real one.",
+      "dateCaveat": "Virginia publishes who is responsible for each route but no construction or resurfacing dates."
     }
   },
   "counties": {

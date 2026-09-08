@@ -1,0 +1,101 @@
+# Coverage checklist
+
+Every jurisdiction probed for this app, whether it shipped and why not when it did not. The
+shipped half mirrors `Sources/RoadCore/Resources/coverage.json`; the rejections are the useful
+part, because each one records what was actually checked so it is not re-probed from scratch.
+
+Full findings for each are in [`ENDPOINTS.md`](ENDPOINTS.md); the section number is given.
+
+**21 profiles shipped · 8 states · 2 counties · 11 cities**
+
+---
+
+## States
+
+| ✅ | State | Source | What it gives | § |
+|---|---|---|---|---|
+| ✅ | **Arizona** | ADOT ATIS + statewide HPMS | Every road named and owned statewide, incl. 21,600 private and 10,213 gated; construction dates on state routes | 3, 17 |
+| ✅ | **Texas** | TxDOT inventory + DCIS register | Owner, class, traffic; **73,306 projects 1970–2050 with cost**, contractor on live work | 10.2b, 10.2c |
+| ✅ | **North Carolina** | NCDOT road characteristics | 1.2M segments, names on 97%, **473,065 improvement dates**, 1,049 named owners. Only agency publishing domains | 18 |
+| ✅ | **Massachusetts** | MassDOT road inventory | 409,586 segments, 18 documented owners incl. private and **120,329 unaccepted**. Second agency publishing domains | 20 |
+| ✅ | **Ohio** | ODOT road inventory | 402,947 segments, jurisdiction on all, names on 94%, **townships** as an authority. No dates | 19 |
+| ✅ | **Pennsylvania** | PennDOT roadway segments | Name, owner, `YR_BUILT` and `YR_RESURF` on state-owned roads | 10.1 |
+| ✅ | **Virginia** | VDOT route master | 196,896 routes; ownership from route *type*, because VDOT maintains the secondary system in every locality but two. No dates | 21 |
+| ✅ | **Louisiana** | LA DOTD LRS | Name, HPMS owner, construction and improvement years on control sections | 10.2 |
+
+### Probed, not shipped
+
+| State | Why not | § |
+|---|---|---|
+| Florida | `RCI_Layers` MapServer exposes a name and almost nothing else | 18 |
+| Washington | `HpmsSegments` is 3,176 rows | 18 |
+| California | Caltrans server has a `CHhighway` folder with one service | 18 |
+| New York | Server unreachable; two-digit extended functional class would need its own table | 10, 18 |
+| Michigan | Server unreachable | 18 |
+| Iowa, Tennessee | Flat inventories, not yet mapped | 10 |
+| **National (FHWA)** | `HPMS_Public_Release` and `ARNOLD_Inventory_HPMS` return **`499 Token Required`** — settles that there is no national ownership layer without a key | 18 |
+
+---
+
+## Counties
+
+| ✅ | County | Source | What it gives | § |
+|---|---|---|---|---|
+| ✅ | **Maricopa, AZ** | MCDOT + assessor + recorder | The deepest coverage anywhere: owner, project, plat, declaration, pavement, parcels | 1–2 |
+| ✅ | **Cameron, TX** | County road inventory | 3,119 unincorporated roads: name, surface, lanes. No dates | 15 |
+
+### Probed, not shipped
+
+| County | Why not | § |
+|---|---|---|
+| Hidalgo, TX | No public road or street service found | 15 |
+| Starr, TX | No road service | 15 |
+| Pima, AZ | No public road service; covered by ADOT statewide instead | 17 |
+| County GIS generally | Auto-discovery fails — 1 of 12 counties had a usable endpoint | 11 |
+
+---
+
+## Cities
+
+| ✅ | City | Source | What it gives | § |
+|---|---|---|---|---|
+| ✅ | **Dallas, TX** | Pavement condition | **27,588 rehab years, no sentinel**, work type, condition, block range | 14 |
+| ✅ | **San Antonio, TX** | Pavement inventory | 98,986 segments, named owner incl. **11,017 private**. Dates 96% placeholder, filtered | 14 |
+| ✅ | **Arlington, TX** | Pavement inventory | **Installed *and* replaced dates**; `Built`/`Reconstructed` are null decoys | 16 |
+| ✅ | **Laredo, TX** | Pavement condition | A real `YEAR_BUILT` on ~5,200 streets; 1980 placeholder on 50.9%, filtered | 16 |
+| ✅ | **Denver, CO** | Pavement treatments | `YR_LSTWK` on 82%, no sentinel; maintenance names the airport, parks, a cemetery | 20 |
+| ✅ | **Edinburg, TX** | Capital projects | **Contractor, actual cost, completion date** on 139 projects | 15 |
+| ✅ | **Pharr, TX** | Street inventory | Owner incl. 697 private, pavement rating, 2015–18 repaving | 15 |
+| ✅ | **Irving, TX** | Road centreline | Owner incl. 820 private, DFW airport slivers. No dates | 17 |
+| ✅ | **Weslaco, TX** | Street centreline | Name and responsible jurisdiction. No dates | 15 |
+| ✅ | **Brownsville, TX** | Road centreline | Name only — the thinnest profile shipped | 15 |
+| ✅ | **McAllen, TX** | Annexation history | 346 tracts 1927–2023. Not a construction date and never shown as one | 15 |
+
+### Probed, not shipped
+
+| City | Why not | § |
+|---|---|---|
+| **Harlingen, TX** | **Template data** — rows named "PROJECT 1", one shared end date, centroids in Edinburg | 15 |
+| New York, NY | 122,269 centrelines but `RWJURISDICTION` is **96% null** — names only, which TIGER gives | 20 |
+| Houston, TX | 235,765 centrelines, no dates; project layers hold 17 and 6 features | 14 |
+| Austin, TX | Street centreline carries only GIS record metadata | 14 |
+| Los Angeles, CA | Cool-pavement studies, no citywide inventory | 20 |
+| Chicago, IL | Search resolves to CMAP, the regional agency, not the city | 20 |
+| Seattle, WA | 1,020 services, none a centreline with ownership or dates | 20 |
+| Boston, MA | Superseded — its layer is MassDOT's schema, and the statewide version shipped | 20 |
+| Fort Worth, TX | 624 polygons with only a document-update date | 16 |
+| Lubbock, TX | `CIP` holds 2 rows; `COL_Streets` 969 with no dates | 16 |
+| Phoenix, Tucson, Mesa, Chandler, Gilbert, Scottsdale, Tempe, AZ | None publishes a usable street service; all named by ADOT statewide instead | 17 |
+| Corpus Christi, Plano, Garland, Frisco, El Paso, TX | No city street or pavement service found | 16 |
+| Mission, San Juan, San Benito, Rio Grande City, TX | No service found | 15 |
+
+---
+
+## Where to look next
+
+1. **Virginia's pavement-conditions layer** (`Pavement_Conditions_2023_All_Systems`, 101,080
+   rows) has an `EFF_YEAR` that has not been checked — it may or may not be a survey year.
+2. **Cities inside covered states** add *dates*, which the statewide layers mostly lack —
+   Charlotte, Raleigh, Columbus, Cleveland, Boston.
+3. **Counties** remain the weakest tier: two shipped against 3,143 in the country, and §11
+   established that auto-discovery does not work.

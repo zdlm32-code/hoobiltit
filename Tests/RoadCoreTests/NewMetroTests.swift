@@ -116,3 +116,56 @@ struct NewMetroTests {
         #expect(CodeTables.workKind(pavementTreatment: "None") == nil)
     }
 }
+
+@Suite("Virginia — where the locality is not the owner")
+struct VirginiaTests {
+    let arlingtonStreet = RoadQuery(latitude: 38.888146, longitude: -77.137878)
+    let secondaryRoute = RoadQuery(latitude: 37.824565, longitude: -75.664414)
+
+    private func vdot(_ fixture: String) -> FlatInventorySource {
+        FlatInventorySource(profile: CoverageCatalog.bundled.profile(forState: "51")!,
+                            client: ArcGISClient(transport: FixtureTransport([
+                                "LRS_Route_Master/FeatureServer/0": .fixture(fixture)])),
+                            now: { Date(timeIntervalSince1970: 1_757_000_000) })!
+    }
+
+    @Test("A locality that really does maintain its own streets is credited")
+    func localityStreet() async throws {
+        let fragment = try await vdot("vdot_arlington").fetch(arlingtonStreet)
+        #expect(fragment.segmentName?.value == "Patrick Henry DR")
+        #expect(fragment.owner?.value == .county(agency: "Arlington County"))
+    }
+
+    /// The trap this profile exists to avoid.
+    @Test("A VDOT secondary road is not handed to the county it runs through")
+    func secondaryIsVDOT() async throws {
+        let fragment = try await vdot("vdot_secondary").fetch(secondaryRoute)
+        // `RTE_JURIS_PROPER_NM` on this row reads "Accomack County", and reading that as
+        // ownership would hand 64,076 VDOT-maintained secondary roads to their counties.
+        #expect(fragment.owner?.value
+                == .state(agency: "Virginia Department of Transportation"))
+        #expect(fragment.owner?.value != .county(agency: "Accomack County"))
+    }
+
+    @Test("Route type is the ownership signal, and Arlington and Henrico prove it")
+    func routeTypeIsTheSignal() throws {
+        // Virginia is arranged unlike any other state: VDOT maintains the secondary system in
+        // every locality except Arlington and Henrico. Those two have almost no secondary
+        // routes — 7 and 4 — while VDOT-maintained Fairfax has 9,422. The data confirms the
+        // arrangement, which is why route type can be trusted over the locality name.
+        let profile = try #require(CoverageCatalog.bundled.profile(forState: "51"))
+        let rules = try #require(profile.fields?.ownershipRules)
+        #expect(rules[0].field == "RTE_TYPE_NM")
+        #expect(rules[0].names?["Secondary Route"] == "Virginia Department of Transportation")
+        #expect(rules[0].names?["Street Route"] == "", "a street route declines, so rule two runs")
+        #expect(rules[1].field == "RTE_JURIS_PROPER_NM")
+    }
+
+    @Test("The agency's route label is not mistaken for a street name")
+    func commonNameNotUsed() throws {
+        // RTE_COMMON_NM reads "SC-682E (Accomack County)". TIGER gives "Anns Cove Rd".
+        let profile = try #require(CoverageCatalog.bundled.profile(forState: "51"))
+        #expect(profile.fields?.name == nil)
+        #expect(profile.fields?.nameParts?.contains("RTE_STREET_NM") == true)
+    }
+}

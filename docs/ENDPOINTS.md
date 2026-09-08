@@ -1821,3 +1821,42 @@ same way. `HIPR` (3,984 segments) is expanded to "hot in-place recycling".
 | Los Angeles | cool-pavement studies, no citywide inventory |
 | Chicago | search resolves to CMAP, the regional planning agency, not the city |
 | Boston | superseded by the statewide MassDOT layer above |
+
+---
+
+## 21. Virginia — where the locality named on the road does not own it
+
+```
+https://services.arcgis.com/p5v98VHDX9Atv3l7/arcgis/rest/services/LRS_Route_Master/FeatureServer/0
+```
+
+196,896 routes with `RTE_JURIS_PROPER_NM` naming 218 localities — Fairfax County, City of Virginia
+Beach, Loudoun County. Reading that as ownership is the obvious move and it is **wrong**.
+
+Virginia is arranged unlike any other state: **VDOT maintains the secondary system in every
+locality except Arlington and Henrico.** So the locality name says where a route *is*, not who
+keeps it, and taking it at face value hands 64,076 VDOT-maintained secondary roads to the
+counties they happen to run through.
+
+`RTE_TYPE_NM` is the real signal, and the data confirms the arrangement independently:
+
+| Locality | Street Route | Secondary Route |
+|---|---|---|
+| Arlington County | 676 | **7** |
+| Henrico County | 6,420 | **4** |
+| Fairfax County | 5,841 | **9,422** |
+
+The two localities that famously maintain their own roads have almost no secondary routes; a
+VDOT-maintained county is majority secondary. So `Secondary Route`, `State Route`, `U.S. Route`,
+`Interstate`, `Frontage Road` and `Urban Road` are VDOT, and `Street Route` belongs to its
+locality.
+
+This needed **no new Swift**. Two `ownershipRules`: the first maps every VDOT route type through
+`namedAgency` and maps `Street Route` to an empty string so it declines; the second then reads
+`RTE_JURIS_PROPER_NM`, where `owner(named:)` already resolves "Fairfax County" to a county and
+"City of Virginia Beach" to a municipality.
+
+`RTE_COMMON_NM` is a label, not a name — `Patrick Henry DR (NP - Arlington County)` on a street,
+`SC-682E (Accomack County)` on a secondary route — so it is not read at all. Named streets come
+from the joined street parts; a secondary route with no street name falls through to TIGER, which
+gives a real one (*Anns Cove Rd*). No dates are published.
