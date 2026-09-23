@@ -13,6 +13,9 @@ the App Store renders each line break literally — hard-wrapped text shows up r
 **Privacy Policy URL** https://hoobiltit.com/privacy
 **Terms of Use** https://hoobiltit.com/terms — also set as the custom EULA in App Store Connect
 
+## What's New
+hoobiltit may now ask you for a rating, but only after it has answered your roads on a few different days. It never asks while you're driving, and asks at most once per version. Thanks for the early support.
+
 ## Promotional text
 Now covering 19 states — including New Hampshire's Class VI roads and Vermont's private roads, the ones nobody maintains.
 

@@ -17,7 +17,7 @@ APP = "6809232030"
 EDITABLE = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED",
             "METADATA_REJECTED", "INVALID_BINARY"}
 LIMITS = {"name": 30, "subtitle": 30, "promotionalText": 170,
-          "description": 4000, "keywords": 100}
+          "description": 4000, "keywords": 100, "whatsNew": 4000}
 apply = "--apply" in sys.argv
 
 md = open("store/listing.md").read()
@@ -30,6 +30,9 @@ def field(label):
 want_info = {"name": field("Name"), "subtitle": field("Subtitle")}
 want_ver = {"description": section("Description"), "keywords": section("Keywords"),
             "promotionalText": section("Promotional text")}
+# The first version has no "What's New"; every update needs one.
+if "## What's New" in md:
+    want_ver["whatsNew"] = section("What's New")
 for k, v in {**want_info, **want_ver}.items():
     if len(v) > LIMITS[k]:
         sys.exit(f"{k} is {len(v)} characters, limit {LIMITS[k]}")
