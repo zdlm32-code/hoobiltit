@@ -3,38 +3,62 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>hoobiltit — who built this road?</title>
+<title>hoobiltit — who owns and built this road? | iPhone app</title>
 <meta name="description" content="An iPhone and iPad app that names the road under you and tells you who owns it, when it was built, and which project built it — reading the county, state and federal records directly. Available now on the App Store.">
 <!-- Stable URL first, for crawlers: Google wants the favicon URL to stay put, so it
      cannot use the ?v= trick. It is served with a short TTL instead. The versioned
      PNG below is what browsers actually pick, and updates instantly. -->
+<link rel="canonical" href="https://hoobiltit.com/">
 <link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png?v=20260908a">
-<link rel="apple-touch-icon" href="/assets/icon-180.png?v=20260908a">
-<link rel="stylesheet" href="/assets/site.css?v=20260908a">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png?v=20260923a">
+<link rel="apple-touch-icon" href="/assets/icon-180.png?v=20260923a">
+<link rel="stylesheet" href="/assets/site.css?v=20260923a">
 <!-- Google tag (gtag.js) with Consent Mode v2 — defaults are set in consent.js,
      which must load before gtag.js. -->
-<script src="/assets/consent.js?v=20260908a"></script>
+<script src="/assets/consent.js?v=20260923a"></script>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-L46G8VYPYH"></script>
+<!-- Smart App Banner: Safari on iPhone and iPad shows a native Get/Open bar. -->
+<meta name="apple-itunes-app" content="app-id=6809232030">
 <meta name="theme-color" content="#1a1d23">
 <meta property="og:type" content="website">
 <meta property="og:title" content="hoobiltit — who built this road?">
 <meta property="og:description" content="Drop a pin on any road and get the owning jurisdiction, the year, and the project that built it — straight from the public records. iPhone and iPad, on the App Store now.">
 <meta property="og:url" content="https://hoobiltit.com/">
-<meta property="og:image" content="https://hoobiltit.com/assets/icon-512.png?v=20260908a">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="https://hoobiltit.com/assets/og-card.png?v=20260923a">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="hoobiltit: who built this road? An iPhone showing a road card with its owner, classification, traffic and plat.">
+<meta name="twitter:card" content="summary_large_image">
+<!-- Structured data for search. A JSON-LD block is data, never executed, so the edge
+     CSP's ban on inline script does not apply to it. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "hoobiltit: US Road Information",
+  "alternateName": "hoobiltit",
+  "description": "Point at a road and hoobiltit names it, says which agency owns it, when it was built or last improved, and which project did the work, read live from county, state and federal records.",
+  "operatingSystem": "iOS 17.0 or later",
+  "applicationCategory": "ReferenceApplication",
+  "url": "https://hoobiltit.com/",
+  "downloadUrl": "https://apps.apple.com/app/id6809232030",
+  "image": "https://hoobiltit.com/assets/icon-512.png",
+  "offers": {"@type": "Offer", "price": "5.99", "priceCurrency": "USD"},
+  "publisher": {"@type": "Organization", "name": "Dwas Woot LLC"}
+}
+</script>
 </head>
 <body>
 
 <header>
   <div class="wrap bar">
-    <img src="/assets/icon-180.png?v=20260908a" alt="">
+    <img src="/assets/icon-180.png?v=20260923a" alt="">
     <span class="name">hoobiltit.com</span>
     <nav>
       <a href="#coverage">Coverage</a>
       <a href="#share" data-opt>Sharing</a>
-      <a href="/terms.html">Terms</a>
-      <a href="/privacy.html">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
     </nav>
   </div>
 </header>
@@ -52,9 +76,12 @@
         <p class="price-line">
           <b>$5.99 one-time</b><span>no subscription</span><span>iPhone and iPad</span><span>iOS 17+</span>
         </p>
+        <p class="store"><a href="https://apps.apple.com/app/id6809232030"><img
+          src="/assets/app-store-badge.svg?v=20260923a" width="150" height="50"
+          alt="Download on the App Store"></a></p>
       </div>
       <div class="hero-art">
-        <img src="/assets/icon-512.png?v=20260908a" alt="The hoobiltit app icon: a magnifying glass held over a road, the lane markings enlarged under the lens.">
+        <img src="/assets/icon-512.png?v=20260923a" alt="The hoobiltit app icon: a magnifying glass held over a road, the lane markings enlarged under the lens.">
       </div>
     </div>
   </div>
@@ -121,7 +148,7 @@
       <p class="pool-note">Every lookup goes straight from your phone to the county, state or
         federal service that answers it. There is nothing in between to keep a copy, which is why
         the app can say it collects nothing and mean it literally. The
-        <a href="/privacy.html">privacy policy</a> is short for the same reason.</p>
+        <a href="/privacy">privacy policy</a> is short for the same reason.</p>
     </div>
   </div>
 </main>
@@ -131,7 +158,7 @@
     <span class="who">
       <span>hoobiltit — Dwas Woot LLC</span>
       <span>Questions: <!--email_off--><a href="mailto:support@hoobiltit.com">support@hoobiltit.com</a><!--/email_off--></span>
-      <span><a href="/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a></span>
+      <span><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></span>
     </span>
     <nav></nav>
   </div>
