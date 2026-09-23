@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import StoreKit
 import CoreLocation
 import RoadCore
 import RoadSources
@@ -50,6 +51,9 @@ public struct RoadMapScreen: View {
     /// inferred from the camera's bounding region. Nil only before the first layout pass.
     @State private var aimCoordinate: CLLocationCoordinate2D?
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.requestReview) private var requestReview
+    /// `ReviewPrompt` as JSON. Empty until the first real answer is closed.
+    @AppStorage("reviewPrompt") private var reviewPromptData = Data()
     @State private var previousRegion: MKCoordinateRegion?
     @State private var tappedParcel: ParcelReference?
     @State private var loadingParcel = false
@@ -676,6 +680,23 @@ public struct RoadMapScreen: View {
         .padding(.top, 8)
     }
 
+    /// Clears the pin, and — at this pause the user chose — counts the answer they just read
+    /// toward a rating request. See `ReviewPrompt` for when that is allowed to happen.
+    private func closeCard() {
+        if let record = model.record {
+            var prompt = (try? JSONDecoder().decode(ReviewPrompt.self, from: reviewPromptData))
+                ?? ReviewPrompt()
+            prompt.note(record)
+            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+            if prompt.shouldAsk(appVersion: version, isDriving: model.isDriving) {
+                prompt.markAsked(appVersion: version)
+                requestReview()
+            }
+            reviewPromptData = (try? JSONEncoder().encode(prompt)) ?? reviewPromptData
+        }
+        model.clear()
+    }
+
     @ViewBuilder
     private func resolvedCard(_ record: RoadRecord) -> some View {
         // Pinned above the card rather than inside it: the card scrolls, and a dismiss control
@@ -685,7 +706,7 @@ public struct RoadMapScreen: View {
             // close button directly under the locate button reads as a fifth control rather
             // than a way out of the card.
             Button {
-                withAnimation(.easeOut(duration: 0.2)) { model.clear() }
+                withAnimation(.easeOut(duration: 0.2)) { closeCard() }
             } label: {
                 Image(systemName: "xmark")
                     .font(.subheadline.weight(.semibold))
@@ -758,7 +779,7 @@ public struct RoadMapScreen: View {
                         sheet = .sources
                     }
                     Button("Clear pin", systemImage: "xmark.circle", role: .destructive) {
-                        model.clear()
+                        closeCard()
                     }
                 }
                 // The app has no settings or about screen, so this menu is the only route to
