@@ -841,12 +841,19 @@ struct SamplePin: Identifiable {
     let coordinate: CLLocationCoordinate2D
     var id: String { name }
 
-    /// `-pin williams` on the command line, matched on the leading word of the name.
+    /// `-pin williams` on the command line, matched on the leading word of the name, or
+    /// `-pin 32.7767,-96.7970` for anywhere else — the store screenshots come from pins well
+    /// outside Maricopa.
     static func fromLaunchArguments() -> SamplePin? {
         let arguments = ProcessInfo.processInfo.arguments
         guard let flag = arguments.firstIndex(of: "-pin"), arguments.indices.contains(flag + 1)
         else { return nil }
         let wanted = arguments[flag + 1].lowercased()
+        let parts = wanted.split(separator: ",").compactMap { Double($0) }
+        if parts.count == 2 {
+            return SamplePin(name: wanted,
+                             coordinate: .init(latitude: parts[0], longitude: parts[1]))
+        }
         return all.first { $0.name.lowercased().replacingOccurrences(of: " ", with: "").hasPrefix(wanted) }
     }
 

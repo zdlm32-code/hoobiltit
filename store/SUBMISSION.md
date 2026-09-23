@@ -61,3 +61,22 @@ App Store Connect → **1.0** → Add for Review → Submit.
 
 Release is set to **manual after approval** (`AFTER_APPROVAL`), so nothing goes live
 until you release it.
+
+---
+
+# 1.0.1 — listing, screenshots and the rating prompt
+
+1.0 is live. 1.0.1 carries the corrected listing (`store/listing.md`), captioned
+screenshots, and the in-app rating prompt (`ReviewPrompt`).
+
+1. App Store Connect → hoobiltit → **+ Version** → `1.0.1`. The API can do this too, but
+   it is a write to the live app record, so it is left to a human.
+2. Bump `MARKETING_VERSION` to `1.0.1` in `project.yml`, then archive and upload with
+   `scripts/archive-and-upload.sh`.
+3. `python3 scripts/push-listing.py` to review the diff, then `--apply`.
+4. `python3 scripts/caption-screenshots.py`, look at `store/screenshots/captioned/`, then
+   `python3 scripts/upload-screenshots.py`. It empties the copied-over sets first.
+5. `python3 scripts/submission-status.py`, attach the build, submit.
+
+Re-capture a screenshot with `-pin <lat>,<lon>` as a launch argument; the Texas shot is
+`-pin 30.490050,-97.676922` (I-35 in Round Rock, which carries its TxDOT project).

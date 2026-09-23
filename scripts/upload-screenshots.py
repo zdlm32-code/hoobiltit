@@ -3,14 +3,22 @@
 Apple's flow is three steps per image: reserve an appScreenshot (which returns a
 set of upload operations), PUT the bytes to each, then PATCH uploaded=true. The
 checksum Apple wants is the MD5 of the whole file.
+
+Uploads the captioned images (scripts/caption-screenshots.py) to the version that is
+still editable. A new version starts with a copy of the previous version's screenshots,
+so each set is emptied first — otherwise the new ones land after the old.
 """
 import hashlib, os, sys, urllib.request
 sys.path.insert(0, "scripts"); import asc
 
-VERLOC = "000ca161-0592-43a2-95f3-d789f87039f9"
+APP = "6809232030"
+EDITABLE = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED",
+            "METADATA_REJECTED", "INVALID_BINARY"}
 # 6.9" images (1320x2868) go in the 6.7" slot: the API exposes no APP_IPHONE_69 and
-# Apple accepts either size there.
-SETS = {"APP_IPHONE_67": "store/screenshots/iphone69"}
+# Apple accepts either size there. 13" iPad images (2064x2752) likewise go in 12.9".
+SETS = {"APP_IPHONE_67": "store/screenshots/captioned/iphone69",
+        "APP_IPAD_PRO_3GEN_129": "store/screenshots/captioned/ipad13"}
+VERLOC = None  # resolved at run time from the editable version
 
 def existing_set(jwt, display):
     s, b = asc.call("GET", f"/appStoreVersionLocalizations/{VERLOC}/appScreenshotSets", jwt)
@@ -52,11 +60,25 @@ def upload(jwt, set_id, path):
     if not ok: print("      ", str(b)[:250])
     return ok
 
+def empty(jwt, set_id):
+    s, b = asc.call("GET", f"/appScreenshotSets/{set_id}/appScreenshots", jwt)
+    for shot in b.get("data", []):
+        s, _ = asc.call("DELETE", f"/appScreenshots/{shot['id']}", jwt)
+        print(f"   removed {shot['attributes']['fileName']} [{s}]")
+
 jwt = asc.token(*asc.credentials())
+s, b = asc.call("GET", f"/apps/{APP}/appStoreVersions?limit=10", jwt)
+version = next((v for v in b["data"] if v["attributes"]["appStoreState"] in EDITABLE), None)
+if not version:
+    sys.exit("No editable version — create the next version in App Store Connect first.")
+s, b = asc.call("GET", f"/appStoreVersions/{version['id']}/appStoreVersionLocalizations", jwt)
+VERLOC = next(l["id"] for l in b["data"] if l["attributes"]["locale"] == "en-US")
+print(f"version {version['attributes']['versionString']}")
 for display, folder in SETS.items():
     print(f"{display}:")
     set_id = existing_set(jwt, display)
     if not set_id: continue
+    empty(jwt, set_id)
     for f in sorted(os.listdir(folder)):
         if f.endswith(".png"):
             upload(jwt, set_id, os.path.join(folder, f))
