@@ -7,7 +7,7 @@ links to it. The deploy that fixed the price, feature list and privacy policy is
 
 ## Bump the asset cache-busting token
 
-`site.css` and `consent.js` are both linked as `?v=20260908a` from all three pages. Commit
+`site.css` and `consent.js` are both linked as `?v=20260923a` from all three pages. Commit
 `a2a43d1`: *"Cloudflare caches /assets/ for 7 days and has served a stale stylesheet as a HIT
 before."*
 
