@@ -224,6 +224,13 @@ Every road identified is kept in a drive log, reachable from the road counter on
 from the ⋯ menu. Consecutive lookups on one road collapse to a single entry, so the counter
 reports roads rather than lookups — without that, a five-mile arterial reads as thirty-two.
 
+The drive log lasts as long as the app does. **Past drives** (⋯ menu) keeps every drive after
+that, on the phone only: a trip per drive, its roads in the order driven, the cities it passed
+through, and when it started and ended. It holds **no coordinates and no per-road times**
+(`DrivenRoad`), so it is a list of roads rather than a track. A stop under fifteen minutes —
+fuel, a long light — continues the same trip. Each trip is its own small file in Application
+Support, so recording a road rewrites only the trip in progress; the newest 1,000 are kept.
+
 It re-resolves when the road name changes, when the county changes, or after 250 m — and
 **the refresh is invisible**. That was not always true: the lookup used to blank the card
 first, so on one road the display spent most of its time reading "Looking…". A drive refresh
@@ -260,8 +267,8 @@ not changed, so the 250 m re-resolve cadence costs it nothing on a long road.
 
 ## What the app does not do
 
-It records nothing about you. There is no account, no history, no profile, and no server of ours
-for any of it to go to. It once let you rate roads, and briefly let you pool those ratings on a
+It records nothing about you beyond the past drives described above, and those never leave the
+phone. There is no account, no profile, and no server of ours for any of it to go to. It once let you rate roads, and briefly let you pool those ratings on a
 shared map; both were removed, and the first launch after that change deletes anything a previous
 version stored.
 

@@ -59,7 +59,8 @@ targets:
         NSLocationAlwaysAndWhenInUseUsageDescription: >-
           Drive mode identifies each road as you drive, which needs location while the screen is
           locked. Lookups go only to the public county and state map services that answer them.
-          Nothing is recorded about you and nothing is published anywhere.
+          Past drives are saved on this iPhone as road and city names, never your position, and
+          nothing is published anywhere.
         # True without qualification again: the shared map was removed, and the app now
         # publishes nothing at all.
         NSLocationWhenInUseUsageDescription: >-

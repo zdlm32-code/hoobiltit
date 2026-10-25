@@ -44,7 +44,7 @@ SHARE WHAT IT FINDS
 Send a card for any road, export the full report with every source it consulted, or have the app draft a public-records request to the agency for what it doesn't publish. The roads you drove export as a spreadsheet.
 
 PRIVACY
-No account, no login, no analytics — and no server of ours at all. Lookups go from your device straight to the public map services that answer them. Nothing is recorded about you and nothing is published anywhere.
+No account, no login, no analytics — and no server of ours at all. Lookups go from your device straight to the public map services that answer them. Your past drives are saved on your iPhone as road and city names — never your position — and nothing is published anywhere.
 
 COVERAGE
 Road ownership statewide in 19 states: Arizona, Delaware, Georgia, Iowa, Kentucky, Louisiana, Massachusetts, Michigan, Montana, New Hampshire, New Mexico, New York, North Carolina, Ohio, Pennsylvania, South Dakota, Texas, Vermont and Virginia.

@@ -131,7 +131,7 @@ struct SegmentCard: View {
 
     /// ADOT has no project *names*, only TRACS numbers, so its titles are built from the
     /// number itself. Joining the two would read "H729601C \u{2014} ADOT project H729601C".
-    static func describe(_ project: ProjectReference) -> String {
+    nonisolated static func describe(_ project: ProjectReference) -> String {
         guard let number = project.projectNumber else { return project.title }
         guard !project.title.contains(number) else { return project.title }
         return "\(number) \u{2014} \(project.title)"

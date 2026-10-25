@@ -24,7 +24,11 @@ struct DriveLogList: View {
                         description: Text("Drive mode adds every road it identifies. Start "
                                           + "driving and they will appear here."))
                 } else {
-                    List { ForEach(Array(roads.enumerated()), id: \.offset) { row($0.element) } }
+                    List {
+                        ForEach(Array(driven.enumerated()), id: \.offset) {
+                            DrivenRoadRow(road: $0.element)
+                        }
+                    }
                 }
             }
             .navigationTitle("This drive")
@@ -47,34 +51,36 @@ struct DriveLogList: View {
         }
     }
 
-    @ViewBuilder
-    private func row(_ record: RoadRecord) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(record.segmentName?.value ?? record.routeDesignation?.value ?? "Unidentified road")
-                .font(.headline)
+    /// The same strings past drives keep, so this drive and an old one read identically.
+    private var driven: [DrivenRoad] { roads.compactMap { DrivenRoad(record: $0, city: nil) } }
+}
 
-            if let owner = record.owner?.displayNameWithConfidence {
+/// One road in a drive's list, this drive's or a past one's.
+struct DrivenRoadRow: View {
+    let road: DrivenRoad
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(road.name).font(.headline)
+
+            if let owner = road.owner {
                 Text(owner).font(.subheadline).foregroundStyle(.secondary)
             }
-            if let between = record.crossStreets?.value {
+            if let between = road.between {
                 Text(between).font(.footnote).foregroundStyle(.secondary)
             }
-
-            // Reads the shared content rules directly. This used to build a whole SwiftUI view
-            // and throw it away just to call one computed property on it.
-            let years = DriveCardContent(record: record).years
-            if !years.isEmpty {
-                Text(years.joined(separator: "  \u{00B7}  "))
+            if !road.years.isEmpty {
+                Text(road.years.joined(separator: "  \u{00B7}  "))
                     .font(.subheadline.weight(.medium))
             }
 
             // The two things the driving card deliberately drops, restored now there is time
             // to read them.
-            if let project = record.project?.value ?? record.lastKnownImprovement?.value {
-                Label(SegmentCard.describe(project), systemImage: "hammer.fill")
+            if let project = road.project {
+                Label(project, systemImage: "hammer.fill")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            if let explanation = record.coverage?.explanation(for: record) {
+            if let explanation = road.explanation {
                 Text(explanation).font(.caption).foregroundStyle(.tertiary)
             }
         }
@@ -90,25 +96,37 @@ struct DriveLogList: View {
 /// is one tap from a group chat. Road names and what the app found out about them are the useful
 /// part; the positions are the part that turns a list into a track.
 struct DriveLogCSV: Transferable {
-    let roads: [RoadRecord]
+    let roads: [DrivenRoad]
+
+    let fileName: String
+
+    init(roads: [RoadRecord]) {
+        self.roads = roads.compactMap { DrivenRoad(record: $0, city: nil) }
+        fileName = "roads-this-drive.csv"
+    }
+
+    /// A past drive, which is already kept as `DrivenRoad`s.
+    init(driven: [DrivenRoad], fileName: String) {
+        self.roads = driven
+        self.fileName = fileName
+    }
 
     static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(exportedContentType: .commaSeparatedText) { document in
             Data(document.text.utf8)
         }
-        .suggestedFileName("roads-this-drive.csv")
+        .suggestedFileName { $0.fileName }
     }
 
     var text: String {
         CSVWriter.document(
             columns: ["Road", "Between", "Maintained by", "Years", "Jurisdiction"],
-            rows: roads.map { record in
-                let content = DriveCardContent(record: record)
-                return [content.roadName,
-                        record.crossStreets?.value,
-                        content.owner,
-                        content.years.isEmpty ? nil : content.years.joined(separator: " · "),
-                        record.jurisdiction?.value]
+            rows: roads.map { road in
+                [road.name,
+                 road.between,
+                 road.owner,
+                 road.years.isEmpty ? nil : road.years.joined(separator: " · "),
+                 road.jurisdiction]
             })
     }
 }
