@@ -14,7 +14,11 @@ the App Store renders each line break literally — hard-wrapped text shows up r
 **Terms of Use** https://hoobiltit.com/terms — also set as the custom EULA in App Store Connect
 
 ## What's New
-hoobiltit may now ask you for a rating, but only after it has answered your roads on a few different days. It never asks while you're driving, and asks at most once per version. Thanks for the early support.
+Past drives: every drive is now saved on your iPhone — the roads you drove, in order, who maintains them, and the cities you passed through. No locations are saved, nothing leaves your phone, and you can delete one drive or all of them under ⋯ › Past drives.
+Drive mode keeps the map on your car. It no longer loses you after you switch apps or unlock your phone, pinching to zoom keeps following, and if you drag the map to look around it comes back to the car on its own a few seconds later.
+The lock screen leads with the city you're in — or the tribal community, where there's no city — on a solid card that's easy to read in Light and Dark mode.
+More accurate freeways: stretches of Loop 101 and other freeways that were credited to the city they pass through now show the state, and freeway ramps, frontage roads and canal roads are handled correctly.
+Search is now a button that opens into the search field when you need it, and stays out of the way while you drive.
 
 ## Promotional text
 Now covering 19 states — including New Hampshire's Class VI roads and Vermont's private roads, the ones nobody maintains.
