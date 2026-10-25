@@ -514,7 +514,16 @@ public struct RoadRecord: Sendable {
     /// the more authoritative one and is never overwritten by a later source.
     public mutating func merge(_ fragment: RoadFragment) {
         fill(&segmentName, fragment.segmentName)
-        fill(&owner, fragment.owner)
+        // The one field a later source may overwrite. Sources run in order of authority, so
+        // first-wins is right for everything a source *reads* — but an owner the app concluded
+        // from where the pin is ("inside Phoenix, so Phoenix") is not a reading, and it used
+        // to stop the national highway layer from even being asked. See `HighwayName`.
+        if let current = owner, current.isInferredFromLocation,
+           let incoming = fragment.owner, incoming.confidence != .derived {
+            owner = incoming
+        } else {
+            fill(&owner, fragment.owner)
+        }
         fill(&jurisdiction, fragment.jurisdiction)
         fill(&annexation, fragment.annexation)
         fill(&classification, fragment.classification)
@@ -557,5 +566,40 @@ public extension Attributed where Value == RoadOwner {
     /// simply dropped it on the floor.
     var displayNameWithConfidence: String {
         confidence == .derived ? "\(value.displayName) (inferred)" : value.displayName
+    }
+
+    /// An owner worked out from location rather than read from a record: "inside the city
+    /// limits, so the city's", or "nobody accepted it, so nobody's". A source that records
+    /// ownership outright may replace it. County ownership from the maintained set is derived
+    /// too, but from membership of a published list, and stays.
+    var isInferredFromLocation: Bool {
+        guard confidence == .derived else { return false }
+        switch value {
+        case .municipality, .notPubliclyMaintained: return true
+        default: return false
+        }
+    }
+}
+
+public extension RoadRecord {
+    /// Withholds an owner inferred from city limits when the road is a freeway, a numbered
+    /// route or a canal service road by its own name, and nothing more authoritative answered.
+    ///
+    /// A freeway inside Phoenix is still ADOT's. "No owner shown" is honest; "City of Phoenix
+    /// (inferred)" on Loop 101 was not — and it is the same rule the app keeps everywhere else:
+    /// where the record is ambiguous, say nothing rather than guess.
+    mutating func withholdImplausibleOwner() {
+        guard let owner, owner.isInferredFromLocation,
+              let name = segmentName?.value ?? routeDesignation?.value,
+              HighwayName.isNotTheCitys(name) || HighwayName.isHighway(routeDesignation?.value)
+        else { return }
+        self.owner = nil
+        let why = HighwayName.isCanalServiceRoad(name)
+            ? "\(name) is a canal service road, which the canal's operator maintains"
+            : "\(name) is a highway, and a highway inside city limits is normally the state's"
+        notes.append(SourceNote(
+            sourceID: "resolver", sourceName: "hoobiltit",
+            outcome: .skipped,
+            detail: "Ownership not inferred: \(why), not the city's. No source recorded its owner."))
     }
 }

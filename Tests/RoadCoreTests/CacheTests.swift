@@ -170,6 +170,47 @@ struct ResolverCacheTests {
     }
 }
 
+@Suite("A skip is not an answer")
+struct SkippedFragmentCacheTests {
+    private func skipping() -> CountingSource {
+        CountingSource(id: "fhwa.nhs") {
+            var fragment = RoadFragment()
+            fragment.notes = [SourceNote(sourceID: "fhwa.nhs", sourceName: "NHS", outcome: .skipped,
+                                         detail: "Ownership already established by MCDOT.")]
+            return fragment
+        }
+    }
+
+    @Test("A source that skipped is asked again next time")
+    func skipsAreNotStored() async {
+        // The skip was about the other sources' answers on that pass — on Loop 101, a city
+        // inference — and stored it kept the national layer silent there for thirty days.
+        let cache = MemoryCache()
+        let source = skipping()
+        let resolver = RoadResolver(sources: [source], cache: cache, now: { fixedNow })
+        let query = RoadQuery(latitude: 33.67232, longitude: -111.97124)
+        _ = await resolver.resolve(query)
+        _ = await resolver.resolve(query)
+        #expect(await cache.count() == 0)
+        #expect(source.callCount == 2)
+    }
+
+    @Test("A skip stored by an older build is ignored")
+    func storedSkipsAreIgnored() async {
+        let cache = MemoryCache()
+        let query = RoadQuery(latitude: 33.67232, longitude: -111.97124)
+        var stale = RoadFragment()
+        stale.notes = [SourceNote(sourceID: "fhwa.nhs", sourceName: "NHS", outcome: .skipped)]
+        await cache.store(stale, for: "fhwa.nhs", at: CacheKey(query))
+
+        let source = CountingSource(id: "fhwa.nhs") { namedFragment("Pima Fwy") }
+        let resolver = RoadResolver(sources: [source], cache: cache, now: { fixedNow })
+        let record = await resolver.resolve(query)
+        #expect(source.callCount == 1)
+        #expect(record.segmentName?.value == "Pima Fwy")
+    }
+}
+
 @Suite("SwiftData store")
 struct SwiftDataCacheTests {
     let query = RoadQuery(latitude: 33.767648, longitude: -112.528617)

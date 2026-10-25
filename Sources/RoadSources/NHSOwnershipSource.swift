@@ -17,12 +17,23 @@ import RoadCore
 /// local centreline, so an envelope near a city street will happily return the expressway two
 /// blocks over. Unless the NHS's own `LNAME` matches the road already identified, this source
 /// says nothing rather than attributing a freeway's owner to the street beside it.
+///
+/// Two narrow exceptions, both for highways. A segment whose route sign (`S101`) matches the
+/// identified route ("State Rte 101") is the same road whatever its `LNAME` says. And some NHS
+/// freeway segments are unnamed — Loop 101 through north Phoenix — or named after the arterial
+/// alignment they follow — the same freeway is "PIMA RD" through Scottsdale. So when the road
+/// under the pin is itself a freeway by name, the nearest freeway-class segment within
+/// `unnamedFreewayMeters` that is unnamed or shares its base name may speak for its *owner*,
+/// and nothing else: at an interchange the nearest freeway may be the other one, which has the
+/// same owner but not the same traffic or class.
 public struct NHSOwnershipSource: RoadSource {
     public let id = "fhwa.nhs"
     public let displayName = "FHWA National Highway System"
 
     public static let service = "https://geo.dot.gov/server/rest/services/National_Highway_System/MapServer"
     static let layer = 0
+    /// How near an unnamed freeway segment must be to speak for the freeway under the pin.
+    static let unnamedFreewayMeters = 60.0
 
     private let client: ArcGISClient
     private let now: @Sendable () -> Date
@@ -34,7 +45,9 @@ public struct NHSOwnershipSource: RoadSource {
 
     public func fetch(_ query: RoadQuery, resolved: RoadRecord) async throws -> RoadFragment {
         var fragment = RoadFragment()
-        guard resolved.owner == nil else {
+        // An owner inferred from city limits is not established; it is the gap this source exists
+        // to fill. Skipping on it is how Loop 101 became "City of Phoenix (inferred)".
+        guard resolved.owner.map({ $0.isInferredFromLocation }) ?? true else {
             fragment.notes = [note(.skipped, "Ownership already established by "
                                    + (resolved.owner?.provenance.sourceName ?? "another source") + ".")]
             return fragment
@@ -51,10 +64,29 @@ public struct NHSOwnershipSource: RoadSource {
             feature.distance(from: query.coordinate).map { (feature, $0) }
         }.sorted { $0.1 < $1.1 }
 
-        // Only a segment whose own name matches the identified road may speak for it.
+        // Only a segment whose own name — or route sign — matches the identified road may speak
+        // for it.
+        let route = resolved.routeDesignation?.value ?? known
         let matched = candidates.first { candidate in
-            guard let known, let lname = candidate.0["LNAME"].text else { return false }
-            return RoadName.matches(lname, known)
+            if let known, let lname = candidate.0["LNAME"].text, RoadName.matches(lname, known) {
+                return true
+            }
+            return HighwayName.sameRoute(candidate.0["SIGN1"].text, route)
+        }
+
+        if matched == nil, HighwayName.isHighway(known),
+           let nearest = candidates.first, nearest.1 <= Self.unnamedFreewayMeters,
+           nearest.0["LNAME"].text == nil || HighwayName.sameStem(nearest.0["LNAME"].text, known),
+           let fclass = CodeTables.code(nearest.0["FCLASS"]), (1...2).contains(fclass),
+           let code = CodeTables.code(nearest.0["OWNERSHIP"]), let owner = CodeTables.owner(hpms: code) {
+            fragment.owner = Attributed(owner, provenance: provenance(url: url, fetchedAt: now()),
+                                        confidence: .spatial)
+            let named = nearest.0["LNAME"].text.map { "named \($0)" } ?? "unnamed"
+            fragment.notes = [note(.contributed, "Owner from the nearest National Highway System "
+                                   + "freeway, which is \(named)"
+                                   + (nearest.0["SIGN1"].text.map { " and signed \($0)" } ?? "")
+                                   + ".")]
+            return fragment
         }
 
         guard let feature = matched?.0 else {
@@ -67,6 +99,14 @@ public struct NHSOwnershipSource: RoadSource {
         let provenance = provenance(url: url, fetchedAt: now())
         if let code = CodeTables.code(feature["OWNERSHIP"]), let owner = CodeTables.owner(hpms: code) {
             fragment.owner = Attributed(owner, provenance: provenance, confidence: .nameMatch)
+        }
+        // A ramp matches its route's sign but is not the main line: it shares the owner and
+        // nothing else.
+        if HighwayName.isRamp(known) {
+            fragment.notes = [note(fragment.contributesAnything ? .contributed : .foundNothing,
+                                   "Owner from the route this ramp serves"
+                                   + (feature["SIGN1"].text.map { ", \($0)" } ?? "") + ".")]
+            return fragment
         }
         if let code = CodeTables.code(feature["FCLASS"]),
            let classification = CodeTables.functionalClass[code] {

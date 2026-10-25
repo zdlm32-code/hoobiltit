@@ -35,7 +35,14 @@ public struct RoadResolver: Sendable {
                 // Stored even when it found nothing. "MCDOT does not maintain this road" is
                 // a real answer, it costs three requests to re-derive, and it is exactly the
                 // outcome a city pin produces every time.
-                await cache?.store(fragment, for: source.id, at: key)
+                //
+                // Never when it skipped, though. A skip is about what the *other* sources said
+                // on this pass ("ownership already established"), not about the agency's data,
+                // and stored it outlived the reason for thirty days: once an inferred owner
+                // stopped the national layer on Loop 101, the cache kept it stopped.
+                if !fragment.notes.contains(where: { $0.outcome == .skipped }) {
+                    await cache?.store(fragment, for: source.id, at: key)
+                }
                 record.merge(fragment)
             } catch {
                 // Failures are never cached — the endpoint may simply have been down.
@@ -45,6 +52,7 @@ public struct RoadResolver: Sendable {
                 )
             }
         }
+        record.withholdImplausibleOwner()
         return record
     }
 
@@ -55,7 +63,9 @@ public struct RoadResolver: Sendable {
     /// source log can say the network was not touched.
     private func cachedFragment(for source: any RoadSource, at key: CacheKey) async -> RoadFragment? {
         guard let cache, let entry = await cache.fragment(for: source.id, at: key),
-              now().timeIntervalSince(entry.storedAt) < CachePolicy.maximumAge
+              now().timeIntervalSince(entry.storedAt) < CachePolicy.maximumAge,
+              // Skips stored before they stopped being stored. See `resolve`.
+              !entry.fragment.notes.contains(where: { $0.outcome == .skipped })
         else { return nil }
 
         var fragment = entry.fragment
