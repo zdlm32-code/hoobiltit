@@ -20,14 +20,20 @@ public struct Jurisdiction: Sendable, Hashable, Codable {
     /// county — which is a real answer, not a lookup failure.
     public let placeName: String?
     public let placeGEOID: String?
+    /// The reservation or off-reservation trust land, when the coordinate is on one:
+    /// "Salt River Reservation". The Census counts none of them as places, so without this the
+    /// Salt River Pima-Maricopa Indian Community read as "Unincorporated Maricopa County".
+    public let tribalAreaName: String?
 
     public init(stateFIPS: String, countyFIPS: String, countyName: String,
-                placeName: String? = nil, placeGEOID: String? = nil) {
+                placeName: String? = nil, placeGEOID: String? = nil,
+                tribalAreaName: String? = nil) {
         self.stateFIPS = stateFIPS
         self.countyFIPS = countyFIPS
         self.countyName = countyName
         self.placeName = placeName
         self.placeGEOID = placeGEOID
+        self.tribalAreaName = tribalAreaName
     }
 
     /// "Maricopa County, Arizona" — for the card, when no better source named the place.
@@ -35,6 +41,37 @@ public struct Jurisdiction: Sendable, Hashable, Codable {
         let state = Self.stateNames[stateFIPS]
         return [countyName, state].compactMap { $0 }.joined(separator: ", ")
     }
+
+    /// Where the car is, for the lock screen: "Goodyear, Arizona"; on tribal land outside any
+    /// city, the reservation, "Salt River Reservation", which needs no state because several
+    /// span more than one; and "Unincorporated Maricopa County" outside both — a real answer,
+    /// and the one that decides who maintains the road.
+    public var drivingPlaceLabel: String {
+        if let place = plainPlaceName {
+            return [place, Self.stateNames[stateFIPS]].compactMap { $0 }.joined(separator: ", ")
+        }
+        return tribalAreaName ?? "Unincorporated \(countyName)"
+    }
+
+    /// The place name without the Census legal descriptor: TIGER says "Goodyear city" and
+    /// "Gilbert town", which nobody says out loud.
+    ///
+    /// Only lowercase descriptors are removed, which is what keeps "Carson City" whole and
+    /// turns "Oklahoma City city" into "Oklahoma City". Longest first, so "city and borough"
+    /// is not left as "… city and".
+    public var plainPlaceName: String? {
+        guard let placeName else { return nil }
+        for suffix in Self.placeDescriptors where placeName.hasSuffix(" " + suffix) {
+            return String(placeName.dropLast(suffix.count + 1))
+        }
+        return placeName
+    }
+
+    static let placeDescriptors = [
+        "consolidated government (balance)", "metropolitan government (balance)",
+        "unified government (balance)", "metro government (balance)", "city and borough",
+        "city (balance)", "municipality", "borough", "village", "city", "town",
+    ]
 }
 
 /// Turns a coordinate into a `Jurisdiction`, cheaply enough to run on every GPS fix.
@@ -62,6 +99,9 @@ public actor JurisdictionLocator {
     /// pairs, one per vintage — and layer 1 is the current one.
     static let countyLayer = ArcGISLayer("\(service)/State_County/MapServer", layer: 1)!
     static let placeLayer = ArcGISLayer("\(service)/Places_CouSub_ConCity_SubMCD/MapServer", layer: 4)!
+    /// Current-vintage federal reservations and off-reservation trust lands.
+    static let reservationLayer = ArcGISLayer("\(service)/AIANNHA/MapServer", layer: 2)!
+    static let trustLandLayer = ArcGISLayer("\(service)/AIANNHA/MapServer", layer: 3)!
 
     /// Fine enough that the whole county is not generalised away at its edge, coarse enough
     /// to stay a few kilobytes.
@@ -84,6 +124,9 @@ public actor JurisdictionLocator {
     /// The incorporated place last resolved, with its boundary. Nil when the last fix was in
     /// unincorporated county, which is a real answer and not a missing one.
     private var currentPlace: [Coordinate]?
+    /// The tribal area last resolved, with its boundary, for the same reason. Without it every
+    /// kilometre across a reservation outside a city would be a fresh lookup.
+    private var currentTribalArea: [Coordinate]?
     /// Where the place was last actually looked up. Only consulted when there is no place
     /// boundary to test against — see `locate`.
     private var placeResolvedAt: Coordinate?
@@ -118,6 +161,7 @@ public actor JurisdictionLocator {
     /// unbounded kind, and only in unincorporated county.
     private func placeStillHolds(at coordinate: Coordinate) -> Bool {
         if let ring = currentPlace { return Geo.ring(ring, contains: coordinate) }
+        if let ring = currentTribalArea { return Geo.ring(ring, contains: coordinate) }
         guard let origin = placeResolvedAt else { return false }
         return Geo.distance(origin, coordinate) < Self.placeRecheckMeters
     }
@@ -134,21 +178,34 @@ public actor JurisdictionLocator {
             layer: Self.placeLayer, envelope: envelope,
             outFields: "GEOID,NAME", returnGeometry: true,
             maxAllowableOffset: Self.boundarySimplification)
+        async let reservationResult = try? client.query(
+            layer: Self.reservationLayer, envelope: envelope,
+            outFields: "GEOID,NAME", returnGeometry: true,
+            maxAllowableOffset: Self.boundarySimplification)
+        async let trustLandResult = try? client.query(
+            layer: Self.trustLandLayer, envelope: envelope,
+            outFields: "GEOID,NAME", returnGeometry: true,
+            maxAllowableOffset: Self.boundarySimplification)
 
         guard let county = await countyResult?.features.features.first,
               let geoid = county["GEOID"].text, geoid.count == 5,
               let name = county["NAME"].text
         else { return nil }
 
-        // A place miss is a normal answer — unincorporated county — not a failure.
+        // A place miss is a normal answer — unincorporated county — not a failure. So is a
+        // tribal-area miss, which is most of the country.
         let place = await placeResult?.features.features.first
+        let reservation = await reservationResult?.features.features.first
+        let trustLand = await trustLandResult?.features.features.first
+        let tribal = reservation ?? trustLand
 
         let jurisdiction = Jurisdiction(
             stateFIPS: String(geoid.prefix(2)),
             countyFIPS: geoid,
             countyName: name,
             placeName: place?["NAME"].text,
-            placeGEOID: place?["GEOID"].text
+            placeGEOID: place?["GEOID"].text,
+            tribalAreaName: tribal?["NAME"].text
         )
 
         memo[Self.memoKey(coordinate)] = jurisdiction
@@ -160,6 +217,8 @@ public actor JurisdictionLocator {
         // and returns the right answer rather than a wrong one.
         let placeRing = place?.geometry?.coordinatePaths.max(by: { $0.count < $1.count })
         currentPlace = (placeRing?.count ?? 0) > 2 ? placeRing : nil
+        let tribalRing = tribal?.geometry?.coordinatePaths.max(by: { $0.count < $1.count })
+        currentTribalArea = (tribalRing?.count ?? 0) > 2 ? tribalRing : nil
         placeResolvedAt = coordinate
         return jurisdiction
     }

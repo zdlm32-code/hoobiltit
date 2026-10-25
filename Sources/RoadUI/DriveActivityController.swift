@@ -81,7 +81,8 @@ public final class DriveActivityController: @unchecked Sendable {
         // a byte-identical state and costs nothing. That is what makes the 250 m re-resolve
         // cadence free for the lock screen.
         guard state != lastPushed else { return }
-        if state.road == lastPushed?.road, let last = lastPushAt,
+        // Crossing city limits on one road is news too, so it skips the wait like a new road.
+        if state.road == lastPushed?.road, state.city == lastPushed?.city, let last = lastPushAt,
            Date().timeIntervalSince(last) < Self.minimumUpdateInterval { return }
 
         lastPushed = state

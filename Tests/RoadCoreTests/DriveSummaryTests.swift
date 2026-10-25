@@ -99,7 +99,7 @@ struct DriveSummaryTests {
                                                               countyName: "Philadelphia County",
                                                               placeName: "Philadelphia city"))
         }
-        #expect(card(covered).coverageTier == "Philadelphia city")
+        #expect(card(covered).coverageTier == "Philadelphia", "the Census descriptor is jargon too")
 
         let thin = record {
             $0.coverage = Coverage(level: .national,

@@ -125,7 +125,8 @@ public struct DriveCardContent: Sendable, Hashable, Codable {
     static func tier(of record: RoadRecord) -> String? {
         guard let coverage = record.coverage else { return nil }
         switch coverage.level {
-        case .county, .state: return coverage.jurisdiction.map { $0.placeName ?? $0.countyName }
+        case .county, .state:
+            return coverage.jurisdiction.map { $0.plainPlaceName ?? $0.tribalAreaName ?? $0.countyName }
         case .national:       return "Name only"
         }
     }

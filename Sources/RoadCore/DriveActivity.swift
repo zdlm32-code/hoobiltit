@@ -8,6 +8,9 @@ import Foundation
 /// controller skip an update whose rendered text has not changed — on one long road the
 /// payload is byte-identical every 250 m, so the frequent checking costs the activity nothing.
 public struct DriveActivityState: Codable, Hashable, Sendable {
+    /// Where the car is: "Goodyear, Arizona". The lock screen's first line. Optional, so a
+    /// payload from a build without it still decodes.
+    public var city: String?
     public var road: String
     public var context: String?
     public var owner: String?
@@ -17,7 +20,8 @@ public struct DriveActivityState: Codable, Hashable, Sendable {
     public var compactYear: String?
     public var detail: String?
 
-    public init(card: DriveCardContent) {
+    public init(card: DriveCardContent, city: String? = nil) {
+        self.city = city
         self.road = card.roadName ?? "Looking\u{2026}"
         self.context = card.context
         self.owner = card.owner

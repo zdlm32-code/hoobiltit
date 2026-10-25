@@ -117,6 +117,18 @@ struct DriveActivityStateTests {
         #expect(state.years?.hasPrefix("Public road since") == true)
         #expect(state.compactYear == "1970", "the trailing token is a year, so it is usable")
     }
+
+    @Test("Crossing city limits on one road changes the payload")
+    func cityIsPartOfThePayload() {
+        // The road and its card stay the same across a city line; only the city moves. If the
+        // city were not part of the payload, the lock screen would keep naming the last one.
+        let card = DriveCardContent(record: williams)
+        let goodyear = DriveActivityState(card: card, city: "Goodyear, Arizona")
+        let avondale = DriveActivityState(card: card, city: "Avondale, Arizona")
+        #expect(goodyear.city == "Goodyear, Arizona")
+        #expect(goodyear != avondale)
+        #expect(DriveActivityState(card: card).city == nil)
+    }
 }
 
 @Suite("The years line earns its space")

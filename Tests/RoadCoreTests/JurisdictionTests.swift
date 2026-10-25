@@ -124,6 +124,47 @@ struct JurisdictionTests {
         }
     }
 
+    @Test("The lock screen names the city the way people say it")
+    func drivingPlaceLabel() {
+        func place(_ name: String?, county: String = "Maricopa County", state: String = "04") -> Jurisdiction {
+            Jurisdiction(stateFIPS: state, countyFIPS: state + "013", countyName: county, placeName: name)
+        }
+        #expect(place("Goodyear city").drivingPlaceLabel == "Goodyear, Arizona")
+        #expect(place("Gilbert town").drivingPlaceLabel == "Gilbert, Arizona")
+        // Only the lowercase legal descriptor goes; a capitalised "City" is part of the name.
+        #expect(place("Oklahoma City city", state: "40").plainPlaceName == "Oklahoma City")
+        #expect(place("Carson City", state: "32").plainPlaceName == "Carson City")
+        #expect(place("Nashville-Davidson metropolitan government (balance)", state: "47")
+            .plainPlaceName == "Nashville-Davidson")
+        #expect(place("Juneau city and borough", state: "02").plainPlaceName == "Juneau")
+        // Outside every city is a real answer, and the county is named as the county names itself.
+        #expect(place(nil).drivingPlaceLabel == "Unincorporated Maricopa County")
+        #expect(place(nil, county: "East Baton Rouge Parish", state: "22").drivingPlaceLabel
+            == "Unincorporated East Baton Rouge Parish")
+    }
+
+    @Test("Tribal land outside any city is named for the reservation")
+    func tribalArea() async throws {
+        // Indian Bend Rd at the Pavilions: the Salt River Pima-Maricopa Indian Community, which
+        // the Census counts as a reservation and not as a place.
+        let saltRiver = Coordinate(latitude: 33.53838, longitude: -111.88461)
+        let transport = FixtureTransport([
+            "State_County/MapServer/1": .fixture("tiger_county_maricopa"),
+            "Places_CouSub_ConCity_SubMCD/MapServer/4": .fixture("tiger_place_empty"),
+            "AIANNHA/MapServer/2": .fixture("tiger_reservation_salt_river")])
+        let found = try #require(await locator(transport).locate(saltRiver))
+        #expect(found.placeName == nil)
+        #expect(found.tribalAreaName == "Salt River Reservation")
+        #expect(found.drivingPlaceLabel == "Salt River Reservation")
+
+        // A city still wins where there is one, and plain county land is still plain.
+        let both = Jurisdiction(stateFIPS: "04", countyFIPS: "04013", countyName: "Maricopa County",
+                                placeName: "Scottsdale city", tribalAreaName: "Salt River Reservation")
+        #expect(both.drivingPlaceLabel == "Scottsdale, Arizona")
+        let neither = Jurisdiction(stateFIPS: "04", countyFIPS: "04013", countyName: "Maricopa County")
+        #expect(neither.drivingPlaceLabel == "Unincorporated Maricopa County")
+    }
+
     @Test("A lookup failure yields nil rather than a wrong county")
     func failureIsSilent() async throws {
         let dead = FixtureTransport(["State_County/MapServer/1": .status(503)])
