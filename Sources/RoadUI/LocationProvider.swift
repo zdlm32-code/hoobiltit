@@ -43,6 +43,8 @@ public final class LocationProvider: NSObject {
     nonisolated static let stillnessBeforeStationary: TimeInterval = 45
 
     private var slowSince: Date?
+    /// When the previous fix arrived, so the trace can show gaps in the stream.
+    @ObservationIgnored private var previousFixAt: Date?
     public private(set) var isStreaming = false
     /// Called for every fix that clears `distanceFilter`, so drive mode can react.
     public var onFix: (@MainActor (CLLocationCoordinate2D) -> Void)?
@@ -110,6 +112,9 @@ public final class LocationProvider: NSObject {
         manager.allowsBackgroundLocationUpdates = true
         manager.startUpdatingLocation()
         isStreaming = true
+        FollowTrace.log("location", "startStreaming auth=\(manager.authorizationStatus.rawValue) "
+                        + "precise=\(manager.accuracyAuthorization == .fullAccuracy) "
+                        + "filter=\(manager.distanceFilter) pauses=\(manager.pausesLocationUpdatesAutomatically)")
         return true
     }
 
@@ -120,9 +125,14 @@ public final class LocationProvider: NSObject {
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
         isStreaming = false
         currentFix = nil
+        FollowTrace.log("location", "stopStreaming")
     }
 
     private func updateMotion(speed: Double?) {
+        let before = motion
+        defer {
+            if motion != before { FollowTrace.log("motion", "\(before) -> \(motion)") }
+        }
         guard let speed else { return }
         if speed >= Self.drivingEntrySpeed {
             slowSince = nil
@@ -176,7 +186,9 @@ public final class LocationProvider: NSObject {
 extension LocationProvider: CLLocationManagerDelegate {
     public nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
+        let precise = manager.accuracyAuthorization == .fullAccuracy
         MainActor.assumeIsolated {
+            FollowTrace.log("location", "authorization status=\(status.rawValue) precise=\(precise)")
             availability = Self.availability(for: status)
             // Only unblock once the user has actually answered the prompt.
             if status != .notDetermined { resumeAuthorizationWaiters() }
@@ -186,7 +198,20 @@ extension LocationProvider: CLLocationManagerDelegate {
     public nonisolated func locationManager(_ manager: CLLocationManager,
                                             didUpdateLocations locations: [CLLocation]) {
         let coordinate = locations.last?.coordinate
+        let last = locations.last
+        let count = locations.count
         MainActor.assumeIsolated {
+            if let last {
+                let now = Date()
+                let gap = previousFixAt.map { now.timeIntervalSince($0) }
+                previousFixAt = now
+                FollowTrace.log("fix", "lat=\(FollowTrace.num(last.coordinate.latitude, 5)) "
+                                + "lon=\(FollowTrace.num(last.coordinate.longitude, 5)) "
+                                + "acc=\(FollowTrace.num(last.horizontalAccuracy, 0)) "
+                                + "spd=\(FollowTrace.num(last.speed)) crs=\(FollowTrace.num(last.course, 0)) "
+                                + "age=\(FollowTrace.num(now.timeIntervalSince(last.timestamp), 2)) "
+                                + "gap=\(FollowTrace.num(gap, 2)) n=\(count) streaming=\(isStreaming)")
+            }
             resumeFixWaiters(with: coordinate)
             if let coordinate, isStreaming {
                 currentFix = coordinate
@@ -204,6 +229,22 @@ extension LocationProvider: CLLocationManagerDelegate {
 
     public nonisolated func locationManager(_ manager: CLLocationManager,
                                             didFailWithError error: Error) {
-        MainActor.assumeIsolated { resumeFixWaiters(with: nil) }
+        let description = String(describing: error)
+        MainActor.assumeIsolated {
+            FollowTrace.log("location", "error \(description)")
+            resumeFixWaiters(with: nil)
+        }
     }
+
+    #if os(iOS)
+    // Never expected — `pausesLocationUpdatesAutomatically` is off while streaming — which is
+    // exactly why the trace should say so if iOS does it anyway.
+    public nonisolated func locationManagerDidPauseLocationUpdates(_ manager: CLLocationManager) {
+        MainActor.assumeIsolated { FollowTrace.log("location", "PAUSED by iOS") }
+    }
+
+    public nonisolated func locationManagerDidResumeLocationUpdates(_ manager: CLLocationManager) {
+        MainActor.assumeIsolated { FollowTrace.log("location", "resumed by iOS") }
+    }
+    #endif
 }

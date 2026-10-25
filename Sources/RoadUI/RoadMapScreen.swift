@@ -21,13 +21,23 @@ public struct RoadMapScreen: View {
     @State private var style: MapStyleChoice = .standard
     @State private var sheet: MapSheet?
     @State private var locationNotice: String?
+    /// The search button has opened into the address field.
+    @State private var isSearching = false
     /// The camera is tracking the device. Panning breaks it; the recentre button restores it.
+    /// Only ever written through `setFollowing`, so the trace records why it changed.
     @State private var isFollowing = false
+    /// Why following last turned off. Nil while following.
+    @State private var followOffReason: FollowChange?
     /// The zoom the follow camera uses. Seeded from `followDistanceMeters` and then owned by
     /// the user: pinching while following changes this rather than breaking the follow.
     @State private var followDistance = RoadMapScreen.followDistanceMeters
     /// When `follow()` last moved the camera, so its own animation is not read as a pan.
     @State private var lastProgrammaticMove: Date?
+    /// Where `follow()` last sent the camera. A camera that comes to rest here is the app's own
+    /// move, however late MapKit reports it — see `Geo.classifyCameraChange`.
+    @State private var lastFollowTarget: CLLocationCoordinate2D?
+    /// When the driver last moved the map by hand, which is what auto-resume waits out.
+    @State private var lastMapGesture: Date?
     /// The camera has been placed on the device at least once, so a zoom now means "while
     /// following" rather than "while looking around before a fix arrived".
     @State private var hasFollowedOnce = false
@@ -47,6 +57,8 @@ public struct RoadMapScreen: View {
     /// apply hysteresis across dusk.
     @State private var isNight = false
     @State private var driveActivity = DriveActivityController()
+    /// Past drives, on this device. Handed to the model, which records into it.
+    @State private var history = DriveHistoryStore.onDevice()
     /// Where the reticle actually points, converted from its screen position rather than
     /// inferred from the camera's bounding region. Nil only before the first layout pass.
     @State private var aimCoordinate: CLLocationCoordinate2D?
@@ -77,20 +89,38 @@ public struct RoadMapScreen: View {
                 VStack(spacing: 0) {
                     overlay
                     Spacer()
-                    HStack(alignment: .bottom) {
-                        MapScaleBar(span: region.mapSpan, latitude: region.center.latitude)
-                            .padding(.leading, 14)
-                        Spacer()
-                        mapControls
+                    ZStack(alignment: .bottomLeading) {
+                        HStack(alignment: .bottom) {
+                            MapScaleBar(span: region.mapSpan, latitude: region.center.latitude)
+                                .padding(.leading, 14)
+                            Spacer()
+                            mapControls
+                        }
+                        // Out of the way while typing: the field takes the row, and none of
+                        // these is any use with the keyboard up.
+                        .opacity(isSearching ? 0 : 1)
+                        .allowsHitTesting(!isSearching)
+
+                        // Not while driving, like everything else that is not for the road.
+                        if !model.isDriving {
+                            MapSearchControl(text: $model.searchText, isOpen: $isSearching) {
+                                Task { await model.search() }
+                            }
+                            .padding(.horizontal, 14)
+                            // Above the scale bar, beside the bottom of the control stack.
+                            .padding(.bottom, 42)
+                        }
                     }
                 }
             }
             .navigationTitle("Who built this road?")
             .inlineNavigationTitle()
             .toolbar { toolbar }
-            .searchable(text: $model.searchText, prompt: "Search an address")
-            .onSubmit(of: .search) { Task { await model.search() } }
             .task {
+                model.history = history
+                // `-search` opens the address field, for screenshots of it open. First, because
+                // what follows waits on a fix and a lookup.
+                if ProcessInfo.processInfo.arguments.contains("-search") { isSearching = true }
                 // Default behaviour: find the device, follow it, and keep naming the road
                 // under it. Aiming at the map is the fallback for when that is not possible.
                 if SamplePin.fromLaunchArguments() == nil {
@@ -124,6 +154,8 @@ public struct RoadMapScreen: View {
                     ParcelDetailSheet(apn: apn, parcel: tappedParcel, isLoading: loadingParcel)
                 case .driveLog:
                     DriveLogList(roads: model.driveLog) { model.clearDriveLog() }
+                case .driveHistory:
+                    DriveHistoryList(history: history)
                 case .driveSafety:
                     DriveSafetyNotice(
                         onEnable: {
@@ -210,9 +242,9 @@ public struct RoadMapScreen: View {
         // Stripped back while driving: no terrain shading, no points of interest, muted
         // labels. Glare and clutter at speed, and cheaper on a hot phone.
         .mapStyle(style.mapStyle(reduced: model.isDriving))
-        // One modifier removes the title, the search field and the ⋯ menu — none of which is
-        // for driving, and the menu's sample pins each drop a pin and fly the camera off the
-        // car. Toggling `.searchable` itself would change the NavigationStack's identity.
+        // One modifier removes the title and the ⋯ menu — neither of which is for driving, and
+        // the menu's sample pins each drop a pin and fly the camera off the car. The search
+        // button hides itself; see `MapSearchControl`.
         #if os(iOS)
         .toolbar(model.isDriving ? .hidden : .visible, for: .navigationBar)
         #endif
@@ -230,18 +262,18 @@ public struct RoadMapScreen: View {
         // A crash or a force-quit can leave one running; without this the lock screen shows a
         // road from a previous drive.
         .task { driveActivity.endStrayActivities() }
-        .onChange(of: model.driveCard) { _, card in
-            guard model.isDriving, card.roadName != nil else { return }
-            let state = DriveActivityState(card: card)
-            if driveActivity.isAvailable {
-                driveActivity.start(state, foreground: scenePhase == .active)
-                driveActivity.update(state)
-            }
-        }
+        .onChange(of: model.driveCard) { _, _ in pushDriveActivity() }
+        // A long road crosses city limits without the card changing.
+        .onChange(of: model.currentPlace) { _, _ in pushDriveActivity() }
         .onChange(of: model.isDriving) { _, driving in
+            FollowTrace.log("mode", "isDriving=\(driving)")
             if !driving { driveActivity.end() }
+            // A half-typed search does not survive the car starting to move.
+            if driving { isSearching = false }
         }
+        .onChange(of: sheet?.id) { _, id in FollowTrace.log("ui", "sheet=\(id ?? "none")") }
         .onChange(of: scenePhase) { _, phase in
+            FollowTrace.log("ui", "scenePhase=\(phase)")
             // `Activity.request` throws from the background, and drive mode often begins there.
             if phase == .active { driveActivity.resumePendingStart() }
         }
@@ -260,9 +292,14 @@ public struct RoadMapScreen: View {
         // ran. This looks only at distance, which the app always sets to exactly
         // `followDistance` — so a different value can only be the user's.
         .onMapCameraChange(frequency: .continuous) { context in
+            // Not following, nothing moves the camera but the driver, and a long pan has to
+            // keep auto-resume waiting until it is over, not just until it started.
+            if !isFollowing { lastMapGesture = Date() }
             guard isFollowing, hasFollowedOnce else { return }
             guard Geo.userChangedZoom(observed: context.camera.distance,
                                       expected: followDistance) else { return }
+            FollowTrace.log("camera", "userZoom observed=\(FollowTrace.num(context.camera.distance, 0)) "
+                            + "expected=\(FollowTrace.num(followDistance, 0))")
             followDistance = Geo.clampFollowDistance(context.camera.distance)
             lastUserZoom = Date()
         }
@@ -291,14 +328,37 @@ public struct RoadMapScreen: View {
             let settling = lastProgrammaticMove.map {
                 Date().timeIntervalSince($0) < Geo.programmaticSettleWindow
             } ?? false
-            if !settling {
-                switch Geo.classifyCameraChange(from: previousRegion?.mapSpan ?? context.region.mapSpan,
-                                                previousCentre: previousCentre,
-                                                to: context.region.mapSpan,
-                                                currentCentre: newCentre) {
+            let target = isFollowing ? lastFollowTarget.map {
+                Coordinate(latitude: $0.latitude, longitude: $0.longitude)
+            } : nil
+            // The continuous handler stamps every zoom step of a gesture, so a gesture that
+            // just ended inside this window changed the zoom.
+            let pinched = lastUserZoom.map {
+                Date().timeIntervalSince($0) < Geo.userZoomGraceWindow
+            } ?? false
+            let change = settling ? nil
+                : Geo.classifyCameraChange(from: previousRegion?.mapSpan ?? context.region.mapSpan,
+                                           previousCentre: previousCentre,
+                                           to: context.region.mapSpan,
+                                           currentCentre: newCentre,
+                                           followTarget: target,
+                                           userZoomed: pinched)
+            let sinceMove = lastProgrammaticMove.map { Date().timeIntervalSince($0) }
+            FollowTrace.log("camera", "onEnd settling=\(settling) sinceMove=\(FollowTrace.num(sinceMove, 2)) "
+                            + "moved=\(FollowTrace.num(Geo.distance(previousCentre, newCentre))) "
+                            + "offTarget=\(FollowTrace.num(target.map { Geo.distance($0, newCentre) })) "
+                            + "pinch=\(pinched) "
+                            + "span=\(FollowTrace.num(context.region.span.latitudeDelta, 5)) "
+                            + "dist=\(FollowTrace.num(context.camera.distance, 0)) "
+                            + "heading=\(FollowTrace.num(context.camera.heading, 0)) "
+                            + "change=\(change.map { "\($0)" } ?? "own") following=\(isFollowing)")
+            if let change {
+                switch change {
                 case .panned:
-                    isFollowing = false
+                    lastMapGesture = Date()
+                    setFollowing(false, .panned)
                 case .zoomed:
+                    lastMapGesture = Date()
                     // Only while genuinely following the device. A zoom performed before the
                     // first fix is just looking around, and adopting the county-overview
                     // distance strands the follow camera hundreds of kilometres up. Clamped
@@ -311,6 +371,17 @@ public struct RoadMapScreen: View {
                 }
             }
             previousRegion = context.region
+        }
+    }
+
+    /// Puts the drive card and the city on the lock screen.
+    private func pushDriveActivity() {
+        let card = model.driveCard
+        guard model.isDriving, card.roadName != nil else { return }
+        let state = DriveActivityState(card: card, city: model.currentPlace)
+        if driveActivity.isAvailable {
+            driveActivity.start(state, foreground: scenePhase == .active)
+            driveActivity.update(state)
         }
     }
 
@@ -439,6 +510,7 @@ public struct RoadMapScreen: View {
         lastProgrammaticMove = Date()
 
         if isFollowing, let fix = location.currentFix {
+            lastFollowTarget = fix
             followDistance = Geo.clampFollowDistance(followDistance * factor)
             withAnimation {
                 camera = .camera(MapCamera(centerCoordinate: fix,
@@ -494,13 +566,14 @@ public struct RoadMapScreen: View {
             }()
             return
         }
-        isFollowing = true
+        setFollowing(true, .startFollowing)
         model.setDriving(location.motion == .driving)
         location.onFix = { coordinate in
             Task { @MainActor in
                 // Following is about the camera and happens whether or not the car is moving:
                 // a parked phone should still be centred on itself. Motion only decides
                 // whether the app keeps *re-identifying*.
+                autoResumeIfDue()
                 follow(coordinate)
                 syncModeWithMotion()
                 await model.handleDrivingFix(coordinate)
@@ -521,7 +594,7 @@ public struct RoadMapScreen: View {
         model.setDriving(false)
         location.stopStreaming()
         location.onFix = nil
-        isFollowing = false
+        setFollowing(false, .driveStopped)
         keepScreenAwake(false)
         driveActivity.end()
     }
@@ -566,15 +639,24 @@ public struct RoadMapScreen: View {
     /// the county overview even though the app already had a location and had identified the
     /// road. Driving the camera means the zoom is ours and it happens on the first fix.
     private func follow(_ coordinate: CLLocationCoordinate2D) {
-        guard isFollowing else { return }
+        guard isFollowing else {
+            FollowTrace.log("follow", "skip notFollowing offReason=\(followOffReason?.rawValue ?? "-")")
+            return
+        }
         // A pinch emits a stream of camera changes, and recentring in the middle of one drags
         // the map back under the user's fingers — which is what "it keeps zooming into the
         // device when I zoom out" was. Each change refreshes the window, so the app waits
         // until the gesture is over.
         if let lastUserZoom, Date().timeIntervalSince(lastUserZoom) < Geo.userZoomGraceWindow {
+            FollowTrace.log("follow", "skip zoomGrace since=\(FollowTrace.num(Date().timeIntervalSince(lastUserZoom), 2))")
             return
         }
+        FollowTrace.log("follow", "move lat=\(FollowTrace.num(coordinate.latitude, 5)) "
+                        + "lon=\(FollowTrace.num(coordinate.longitude, 5)) "
+                        + "dist=\(FollowTrace.num(followDistance, 0)) "
+                        + "heading=\(FollowTrace.num(location.currentCourse ?? 0, 0))")
         lastProgrammaticMove = Date()
+        lastFollowTarget = coordinate
         hasFollowedOnce = true
         withAnimation(.easeInOut(duration: 0.4)) {
             camera = .camera(MapCamera(centerCoordinate: coordinate,
@@ -591,16 +673,16 @@ public struct RoadMapScreen: View {
     /// on the device, off means it stays where you left it.
     private func toggleFollow() {
         if isFollowing {
-            isFollowing = false
+            setFollowing(false, .locateButton)
             return
         }
-        isFollowing = true
+        setFollowing(true, .locateButton)
         locationNotice = nil
         Task {
             var fix = location.currentFix
             if fix == nil { fix = await location.requestFix() }
             guard let fix else {
-                isFollowing = false
+                setFollowing(false, .noFix)
                 locationNotice = {
                     if case .unavailable(let reason) = location.availability { return reason }
                     return "Could not get a location fix. Try again with a clearer view of the sky."
@@ -622,6 +704,8 @@ public struct RoadMapScreen: View {
     private func syncModeWithMotion() {
         let driving = location.motion == .driving
         guard driving != model.isDriving else { return }
+        FollowTrace.log("mode", "motion says driving=\(driving) acknowledged=\(didAcknowledgeDriveSafety) "
+                        + "declined=\(declinedDriveThisSession)")
         // The first time the phone is moving at road speed, say what drive mode is before
         // doing it. Taking over the screen of someone who never asked — and who may be the
         // one steering — is the one thing in this app that warrants an interruption.
@@ -633,9 +717,29 @@ public struct RoadMapScreen: View {
         model.setDriving(driving)
         // Starting to drive implies wanting the map on the car.
         if driving, !isFollowing, let fix = location.currentFix {
-            isFollowing = true
+            setFollowing(true, .drivingStarted)
             follow(fix)
         }
+    }
+
+    /// Drive mode puts the camera back on the car a few seconds after the driver stops moving
+    /// the map. Checked on each fix, so at a standstill it waits for the car to move again.
+    private func autoResumeIfDue() {
+        guard Geo.shouldAutoResume(isDriving: model.isDriving, isFollowing: isFollowing,
+                                   offBecauseOfMapGesture: followOffReason == .panned,
+                                   lastMapGesture: lastMapGesture, now: Date()) else { return }
+        setFollowing(true, .autoResume)
+    }
+
+    /// The only way `isFollowing` changes.
+    private func setFollowing(_ on: Bool, _ why: FollowChange) {
+        if on != isFollowing {
+            // The line to grep for after a drive: following ended while the car was moving.
+            let lost = !on && location.motion == .driving
+            FollowTrace.log("follow", "\(lost ? "FOLLOW LOST" : "following=\(on)") reason=\(why.rawValue)")
+        }
+        isFollowing = on
+        followOffReason = on ? nil : why
     }
 
     @ViewBuilder
@@ -773,6 +877,9 @@ public struct RoadMapScreen: View {
                 }
                 #endif
                 Button("This drive\u{2026}", systemImage: "car") { sheet = .driveLog }
+                Button("Past drives\u{2026}", systemImage: "clock.arrow.circlepath") {
+                    sheet = .driveHistory
+                }
                 if model.record != nil {
                     Divider()
                     Button("Source log\u{2026}", systemImage: "list.bullet.rectangle") {
@@ -932,6 +1039,8 @@ enum MapSheet: Identifiable {
     case parcel(String)
     /// The roads identified on this drive.
     case driveLog
+    /// Every drive this phone remembers.
+    case driveHistory
     /// Shown once, the first time the phone is moving at road speed.
     case driveSafety
 
@@ -943,7 +1052,26 @@ enum MapSheet: Identifiable {
         case .sources: "sources"
         case .parcel(let apn): "parcel-\(apn)"
         case .driveLog: "driveLog"
+        case .driveHistory: "driveHistory"
         case .driveSafety: "driveSafety"
         }
     }
+}
+
+/// Why following turned on or off.
+enum FollowChange: String {
+    /// Opening the app, or the car button.
+    case startFollowing
+    /// The camera moved and the app read it as the user's pan.
+    case panned
+    /// The location button.
+    case locateButton
+    /// The location button was pressed but no fix arrived.
+    case noFix
+    /// The car reached road speed.
+    case drivingStarted
+    /// The car button turned drive mode off.
+    case driveStopped
+    /// The driver stopped moving the map while drive mode was on.
+    case autoResume
 }

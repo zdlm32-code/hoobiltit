@@ -228,6 +228,26 @@ public extension Geo {
         return abs(observed - expected) / expected > zoomAdoptionFraction
     }
 
+    /// How long after the driver last touched the map that drive mode puts the camera back on
+    /// the car.
+    ///
+    /// Panning while driving is looking around, not leaving: without this, one glance up the
+    /// road switched following off for the rest of the drive. Long enough to read what you
+    /// panned to, short enough that the map is back on the car before it is needed.
+    static let followAutoResumeDelay: TimeInterval = 5
+
+    /// Whether drive mode should start following again.
+    ///
+    /// Only after a gesture on the map. Following switched off with the location button stays
+    /// off — that was a choice, and overriding it every five seconds would be a fight.
+    static func shouldAutoResume(isDriving: Bool, isFollowing: Bool,
+                                 offBecauseOfMapGesture: Bool,
+                                 lastMapGesture: Date?, now: Date) -> Bool {
+        guard isDriving, !isFollowing, offBecauseOfMapGesture else { return false }
+        guard let lastMapGesture else { return true }
+        return now.timeIntervalSince(lastMapGesture) >= followAutoResumeDelay
+    }
+
     /// How long after a user zoom the app leaves the camera alone.
     ///
     /// A pinch emits a stream of camera changes; recentring on a GPS fix in the middle of one
@@ -237,19 +257,39 @@ public extension Geo {
 
     /// Classifies a camera change the app did **not** make.
     ///
-    /// Whether a change was the app's own is decided by the caller on timing, not geometry: an
+    /// Whether a change was the app's own is decided first by the caller on timing: an
     /// animated programmatic move emits intermediate changes that do not match the requested
     /// centre, and treating those as user pans turned follow-on-launch off before the camera
     /// ever arrived.
+    ///
+    /// Timing alone is not enough, though, and `followTarget` is the second test. Every follow
+    /// move travels at least the location provider's 25 m distance filter — always more than
+    /// `panThresholdMeters` — so a follow move MapKit reported after the settle window had
+    /// closed was read as a pan, and following switched itself off mid-drive with nothing to
+    /// switch it back on. A camera that comes to rest where the app last sent it is the app's
+    /// own move however late it is reported; only a camera that ends up somewhere else can
+    /// have been moved by a finger.
+    ///
+    /// `userZoomed` is the third: the gesture changed the zoom. While following, a pinch is a
+    /// change of how far ahead you can see, never a decision to stop following — but MapKit
+    /// zooms around the fingers rather than the middle of the screen, so a pinch out at speed
+    /// dragged the centre 164 m and was read as a pan. Only a gesture that leaves the zoom
+    /// alone can end the follow.
     static func classifyCameraChange(from previous: MapSpan,
                                      previousCentre: Coordinate,
                                      to current: MapSpan,
-                                     currentCentre: Coordinate) -> CameraChange {
+                                     currentCentre: Coordinate,
+                                     followTarget: Coordinate? = nil,
+                                     userZoomed: Bool = false) -> CameraChange {
         let moved = distance(previousCentre, currentCentre)
         let spanDelta = previous.latitudeDelta > 0
             ? abs(current.latitudeDelta - previous.latitudeDelta) / previous.latitudeDelta
             : 0
 
+        if let followTarget, distance(followTarget, currentCentre) <= panThresholdMeters {
+            return spanDelta > zoomThresholdFraction ? .zoomed : .negligible
+        }
+        if followTarget != nil, userZoomed { return .zoomed }
         if moved > panThresholdMeters { return .panned }
         if spanDelta > zoomThresholdFraction { return .zoomed }
         return .negligible

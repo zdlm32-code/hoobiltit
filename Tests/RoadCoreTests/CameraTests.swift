@@ -49,9 +49,57 @@ struct CameraChangeTests {
                                          to: span, currentCentre: moved(1)) == .negligible)
     }
 
-    @Test("A pan wins over a simultaneous zoom")
+    @Test("A follow move reported late is still the app's own")
+    func lateFollowMoveIsNotAPan() {
+        // The reproduction: back in the app after a few seconds away, the map caught up 160 m
+        // to the car and MapKit reported it 1.54 s after `follow()` — past the settle window.
+        // Read as a pan, it switched following off for the rest of the drive.
+        let target = moved(160)
+        #expect(Geo.classifyCameraChange(from: span, previousCentre: centre,
+                                         to: span, currentCentre: target,
+                                         followTarget: target) == .negligible)
+        // An ordinary 25-40 m fix-to-fix move, late, with a little float noise on arrival.
+        #expect(Geo.classifyCameraChange(from: span, previousCentre: centre,
+                                         to: span, currentCentre: moved(43),
+                                         followTarget: moved(40)) == .negligible)
+    }
+
+    @Test("Panning away from where the app put the camera still ends the follow")
+    func panAwayFromTargetStillCounts() {
+        #expect(Geo.classifyCameraChange(from: span, previousCentre: centre,
+                                         to: span, currentCentre: moved(60),
+                                         followTarget: centre) == .panned)
+    }
+
+    @Test("A pinch on the follow target is still a zoom")
+    func zoomOnTargetIsAZoom() {
+        let zoomedOut = MapSpan(latitudeDelta: 0.0116, longitudeDelta: 0.0116)
+        #expect(Geo.classifyCameraChange(from: span, previousCentre: centre,
+                                         to: zoomedOut, currentCentre: centre,
+                                         followTarget: centre) == .zoomed)
+    }
+
+    @Test("A pinch while following keeps following, however far it drags the centre")
+    func pinchKeepsFollowing() {
+        // From the road: pinching out at 60 mph took the camera from 0.8 km to 3.3 km and, because
+        // MapKit zooms around the fingers, dragged the centre 164 m off the car.
+        let zoomedOut = MapSpan(latitudeDelta: 0.0232, longitudeDelta: 0.0232)
+        #expect(Geo.classifyCameraChange(from: span, previousCentre: centre,
+                                         to: zoomedOut, currentCentre: moved(164),
+                                         followTarget: centre, userZoomed: true) == .zoomed)
+    }
+
+    @Test("A drag that leaves the zoom alone still ends the follow")
+    func dragStillEndsFollowing() {
+        #expect(Geo.classifyCameraChange(from: span, previousCentre: centre,
+                                         to: span, currentCentre: moved(164),
+                                         followTarget: centre, userZoomed: false) == .panned)
+    }
+
+    @Test("Not following, a pan wins over a simultaneous zoom")
     func panBeatsZoom() {
-        // Moving and pinching at once is still leaving the device behind.
+        // On geometry alone, moving and zooming at once is still a pan. Only a known zoom
+        // gesture while following overrides that — see `pinchKeepsFollowing`.
         let zoomedOut = MapSpan(latitudeDelta: 0.0116, longitudeDelta: 0.0116)
         #expect(Geo.classifyCameraChange(from: span, previousCentre: centre,
                                          to: zoomedOut, currentCentre: moved(150)) == .panned)
@@ -214,4 +262,40 @@ struct FollowZoomButtonTests {
 /// Mirrors the view's constant so the arithmetic above is testable without a map.
 enum RoadMapScreenDefaults {
     static let followDistanceMeters: Double = 420
+}
+
+@Suite("Drive mode comes back to the car")
+struct FollowAutoResumeTests {
+    private let now = Date()
+
+    private func resume(driving: Bool = true, following: Bool = false, gesture: Bool = true,
+                        secondsSinceGesture: Double?) -> Bool {
+        Geo.shouldAutoResume(isDriving: driving, isFollowing: following,
+                             offBecauseOfMapGesture: gesture,
+                             lastMapGesture: secondsSinceGesture.map { now.addingTimeInterval(-$0) },
+                             now: now)
+    }
+
+    @Test("Five seconds after the last touch, following resumes")
+    func resumesAfterTheDelay() {
+        #expect(resume(secondsSinceGesture: Geo.followAutoResumeDelay))
+        #expect(resume(secondsSinceGesture: 30))
+    }
+
+    @Test("Not while the driver is still looking around")
+    func waitsOutTheGesture() {
+        #expect(!resume(secondsSinceGesture: 0))
+        #expect(!resume(secondsSinceGesture: Geo.followAutoResumeDelay - 0.1))
+    }
+
+    @Test("Turning following off with the button is a choice, and it sticks")
+    func respectsTheButton() {
+        #expect(!resume(gesture: false, secondsSinceGesture: 60))
+    }
+
+    @Test("Only in drive mode, and only when not already following")
+    func onlyWhenItMatters() {
+        #expect(!resume(driving: false, secondsSinceGesture: 60))
+        #expect(!resume(following: true, secondsSinceGesture: 60))
+    }
 }

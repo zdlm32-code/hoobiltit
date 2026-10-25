@@ -42,6 +42,15 @@ public final class RoadLookupModel {
     /// fill does not blink out and back. Also what the Live Activity publishes, so the card and
     /// the lock screen cannot disagree about the road you are on.
     public private(set) var driveCard = DriveCardContent(record: nil)
+    /// The city the device is in, for the Live Activity: "Goodyear, Arizona", or
+    /// "Unincorporated Maricopa County". Updated on every driving fix, not only when the road
+    /// changes, because a straight road crosses city limits without changing its name. Costs
+    /// nothing: the jurisdiction is already located for each fix, and inside a city that is
+    /// answered from the held boundary without a request.
+    public private(set) var currentPlace: String?
+    /// Where drives are kept once the drive log has them. Nil keeps no history, which is what
+    /// tests use; the map screen supplies the on-device store.
+    @ObservationIgnored public var history: DriveHistoryStore?
     /// Roads identified this drive, newest first, so the trip can be read back afterwards.
     public private(set) var driveLog: [RoadRecord] = []
 
@@ -115,6 +124,12 @@ public final class RoadLookupModel {
 
         let point = Coordinate(latitude: coordinate.latitude, longitude: coordinate.longitude)
         let (_, probe, coverage) = await pipeline(at: point)
+        // Kept when the locator has no answer, rather than blanking the lock screen's header
+        // over one failed request.
+        if let place = coverage.jurisdiction?.drivingPlaceLabel, place != currentPlace {
+            currentPlace = place
+            history?.notePlace(place)
+        }
         let hit = await probe.nearestRoad(to: point)
         let county = coverage.jurisdiction?.countyFIPS
         let onRoad = hit.flatMap { $0.metresAway < DriveTrigger.onRoadMeters ? $0 : nil }
@@ -153,6 +168,7 @@ public final class RoadLookupModel {
             .sticking(to: driveCard)
         let (_, probe, coverage) = await pipeline(at: point)
         lastCountyFIPS = coverage.jurisdiction?.countyFIPS
+        currentPlace = coverage.jurisdiction?.drivingPlaceLabel ?? currentPlace
         if let hit = await probe.nearestRoad(to: point), hit.metresAway < 60 {
             lastProbedRoad = RoadName.comparisonKey(hit.name)
         }
@@ -162,6 +178,12 @@ public final class RoadLookupModel {
     /// One entry per road, not one per lookup. See `DriveLog`.
     private func appendToDriveLog(_ record: RoadRecord) {
         driveLog = DriveLog.appending(record, to: driveLog)
+        // The log's newest entry, not `record`: when this is the same road again, the log has
+        // already merged the two and kept whichever knew more. A record naming no road changes
+        // nothing, and history skips it the same way.
+        if record.segmentName != nil || record.routeDesignation != nil, let newest = driveLog.first {
+            history?.record(newest, city: currentPlace)
+        }
     }
 
     public func clearDriveLog() { driveLog.removeAll() }
@@ -227,7 +249,9 @@ public final class RoadLookupModel {
                                    probedRoadChanged: probedRoadChanged) {
             record = resolved
         }
-        driveCard = DriveCardContent(record: record, placeName: placeName)
+        // No `placeName`: it was reverse-geocoded once, where drive mode started, and kept
+        // naming that place for the rest of the drive. Where the car is now is `currentPlace`.
+        driveCard = DriveCardContent(record: record)
             .sticking(to: driveCard)
         phase = .resolved
         // The log sees every result regardless; only the card is protected.
